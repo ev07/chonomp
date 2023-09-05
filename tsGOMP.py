@@ -86,9 +86,8 @@ class tsGOMP_AutoRegressive:
         return current_model
 
     def fit(self, data):
-        # data: pandas multiindex dataframe
-        #      first index is the sample number
-        #      second index is the timestamp
+        # data: pandas dataframe
+        #      index is the timestamp
         #      column is the feature name
         
         # initialization of selected and candidate variables, starting from an autoregressive model
@@ -259,9 +258,8 @@ class tsGOMP_oracle(tsGOMP_AutoRegressive):
         
 
     def fit(self, data):
-        # data: pandas multiindex dataframe
-        #      first index is the sample number
-        #      second index is the timestamp
+        # data: pandas dataframe
+        #      index is the timestamp
         #      column is the feature name
         
         # initialization of selected and candidate variables, starting from an autoregressive model
@@ -403,7 +401,7 @@ class tsGOMP_oracle(tsGOMP_AutoRegressive):
 
 
 class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
-    def __init__(self, config, target, ground_truth, verbosity=0):
+    def __init__(self, config, target, ground_truth=None, verbosity=0):
         """
         In this version, the first residuals are computed on an autoregressive model.
         Thus, the target variable is by default in the selected set.
@@ -417,7 +415,7 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
          - model: the model constructor
          - model.config: the parameters to give to the model constructor.
         
-        verbosity set at 1 keeps track of the models used.
+        verbosity set at 1 keeps track of the algorithm whole history.
         """
         super().__init__(config,target,verbosity)
         self.ground_truth = ground_truth
@@ -446,9 +444,8 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
         
 
     def fit(self, data):
-        # data: pandas multiindex dataframe
-        #      first index is the sample number
-        #      second index is the timestamp
+        # data: pandas dataframe
+        #      index is the timestamp
         #      column is the feature name
         
         # initialization of selected and candidate variables, starting from an autoregressive model
@@ -463,9 +460,10 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
         
         residuals = current_model.residuals()
 
-        oracle_order = [var for var in self.ground_truth]
-        if self.target in oracle_order:
-            oracle_order.remove(self.target)
+        if self.ground_truth is not None:
+            oracle_order = [var for var in self.ground_truth]
+            if self.target in oracle_order:
+                oracle_order.remove(self.target)
         algo_should_have_stopped = False
         
         while self._stopping_criterion(current_model, previous_model, len(selected_features)):
@@ -479,34 +477,39 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
             chosen_index = np.argmax(measured_associations)
             chosen_variable = candidate_variable_list[chosen_index]
             
-            # the following only works when the association outputs a p-value
-            # for logging, find out which variables have P-values that are TP, TN, FP, FN.
-            TP = sum(1 if -pval<0.05 and var in self.ground_truth else 0 for pval,var in zip(measured_associations, candidate_variable_list))
-            FP = sum(1 if -pval<0.05 and var not in self.ground_truth else 0 for pval,var in zip(measured_associations, candidate_variable_list))
-            FN = sum(1 if -pval>=0.05 and var in self.ground_truth else 0 for pval,var in zip(measured_associations, candidate_variable_list))
-            TN = sum(1 if -pval>=0.05 and var not in self.ground_truth else 0 for pval,var in zip(measured_associations, candidate_variable_list))
-            
-            # history
-            new_history_row = {"step": len(selected_features),
-            "model": current_model,
-            "associations": list(zip(measured_associations, candidate_variable_list)),
-            "associations_TP": TP,
-            "associations_FP": FP,
-            "associations_TN": TN,
-            "associations_FN": FN,
-            "associations_time": time_association_end - time_association_start,
-            "association_chosen":chosen_variable,
-            "chosen_in_ground_truth": chosen_variable in self.ground_truth,
-            "should_have_stopped": algo_should_have_stopped,
-            "remaining_causal": len(oracle_order),
-            "previous_model_time": time_modeltrain_end - time_modeltrain_start
-            }
-            
+            if self.verbosity:
+                # the following only works when the association outputs a p-value
+                # for logging, find out which variables have P-values that are TP, TN, FP, FN.
+                if self.ground_truth is not None:
+                    TP = sum(1 if -pval<0.05 and var in self.ground_truth else 0 for pval,var in zip(measured_associations, candidate_variable_list))
+                    FP = sum(1 if -pval<0.05 and var not in self.ground_truth else 0 for pval,var in zip(measured_associations, candidate_variable_list))
+                    FN = sum(1 if -pval>=0.05 and var in self.ground_truth else 0 for pval,var in zip(measured_associations, candidate_variable_list))
+                    TN = sum(1 if -pval>=0.05 and var not in self.ground_truth else 0 for pval,var in zip(measured_associations, candidate_variable_list))
+                
+                # history
+                new_history_row = {"step": len(selected_features),
+                "model": current_model,
+                "associations": list(zip(measured_associations, candidate_variable_list)),
+                "associations_time": time_association_end - time_association_start,
+                "association_chosen":chosen_variable,
+                "chosen_in_ground_truth": chosen_variable in self.ground_truth if self.ground_truth is not None else None,
+                "should_have_stopped": algo_should_have_stopped,
+                "remaining_causal": len(oracle_order) if self.ground_truth is not None else None,
+                "previous_model_time": time_modeltrain_end - time_modeltrain_start
+                }
+                if self.ground_truth is not None:
+                    new_history_row = {**new_history_row,
+                                      "associations_TP": TP,
+                                      "associations_FP": FP,
+                                      "associations_TN": TN,
+                                      "associations_FN": FN}
+                                  
             # put the chosen variable in the selected feature set
             selected_features.append(chosen_variable)
             candidate_variables.remove(chosen_variable)
-            if chosen_variable in oracle_order:
-                oracle_order.remove(chosen_variable)
+            if self.ground_truth is not None:
+                if chosen_variable in oracle_order:
+                    oracle_order.remove(chosen_variable)
                 
                 
             # compute new model with this variable
@@ -519,56 +522,62 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
             residuals = current_model.residuals()
 
             # history
-            new_history_row["stopping_metric"] = current_model.stopping_metric(previous_model, self.config["method"])
-            
-            
-            #selected feature set of the natural algorithm
-            if not algo_should_have_stopped and new_history_row["stopping_metric"] >= self.config["significance_threshold"]:
-                algo_should_have_stopped = True
-                new_history_row["current_is_last_model"] = True
-                # chosen variable from this step onward should not be included in statistics about chosen variables, since it was not realy chosen.
-            else:
-                new_history_row["current_is_last_model"] = False
+            if self.verbosity:
+                new_history_row["stopping_metric"] = current_model.stopping_metric(previous_model, self.config["method"])
                 
-            self.history.append(new_history_row)
-            
-        # for logging, add the association step
-        candidate_variable_list = list(candidate_variables)
-        time_association_start = time.time()
-        measured_associations = self.association_objects.association(residuals, data[candidate_variable_list])
-        time_association_end = time.time()
+                
+                #selected feature set of the natural algorithm
+                if not algo_should_have_stopped and new_history_row["stopping_metric"] >= self.config["significance_threshold"]:
+                    algo_should_have_stopped = True
+                    new_history_row["current_is_last_model"] = True
+                    # chosen variable from this step onward should not be included in statistics about chosen variables, since it was not realy chosen.
+                else:
+                    new_history_row["current_is_last_model"] = False
+                    
+                self.history.append(new_history_row)
         
-        # the following only works when the association outputs a p-value
-        TP = sum(1 if -pval<0.05 and var in self.ground_truth else 0 for pval,var in zip(measured_associations,candidate_variable_list))
-        FP = sum(1 if -pval<0.05 and var not in self.ground_truth else 0 for pval,var in zip(measured_associations,candidate_variable_list))
-        FN = sum(1 if -pval>=0.05 and var in self.ground_truth else 0 for pval,var in zip(measured_associations,candidate_variable_list))
-        TN = sum(1 if -pval>=0.05 and var not in self.ground_truth else 0 for pval,var in zip(measured_associations,candidate_variable_list))
-                
-        new_history_row = {"step": len(selected_features),
-            "model":current_model,
-            "associations": list(zip(measured_associations,candidate_variable_list)),
-            "associations_TP": TP,
-            "associations_FP": FP,
-            "associations_TN": TN,
-            "associations_FN": FN,
-            "associations_time": time_association_end - time_association_start,
-            "association_chosen":None, 
-            "chosen_in_ground_truth": None,
-            "remaining_causal": None,
-            "previous_model_time": time_modeltrain_end - time_modeltrain_start,
-            "should_have_stopped": algo_should_have_stopped,
-            "current_is_last_model": not algo_should_have_stopped, #if true, then chosen variable from this step onward should not be included.
-            "stopping_metric": None}
+        if self.verbosity:
+            # for logging, add the association step
+            candidate_variable_list = list(candidate_variables)
+            time_association_start = time.time()
+            measured_associations = self.association_objects.association(residuals, data[candidate_variable_list])
+            time_association_end = time.time()
             
-        self.history.append(new_history_row)
+            # the following only works when the association outputs a p-value
+            if self.ground_truth is not None:
+                TP = sum(1 if -pval<0.05 and var in self.ground_truth else 0 for pval,var in zip(measured_associations,candidate_variable_list))
+                FP = sum(1 if -pval<0.05 and var not in self.ground_truth else 0 for pval,var in zip(measured_associations,candidate_variable_list))
+                FN = sum(1 if -pval>=0.05 and var in self.ground_truth else 0 for pval,var in zip(measured_associations,candidate_variable_list))
+                TN = sum(1 if -pval>=0.05 and var not in self.ground_truth else 0 for pval,var in zip(measured_associations,candidate_variable_list))
+                    
+            new_history_row = {"step": len(selected_features),
+                "model":current_model,
+                "associations": list(zip(measured_associations,candidate_variable_list)),
+                "associations_time": time_association_end - time_association_start,
+                "association_chosen":None, 
+                "chosen_in_ground_truth": None,
+                "remaining_causal": None,
+                "previous_model_time": time_modeltrain_end - time_modeltrain_start,
+                "should_have_stopped": algo_should_have_stopped,
+                "current_is_last_model": not algo_should_have_stopped, #if true, then chosen variable from this step onward should not be included.
+                "stopping_metric": None}
+            if self.ground_truth is not None:
+                new_history_row = {**new_history_row,
+                    "associations_TP": TP,
+                    "associations_FP": FP,
+                    "associations_TN": TN,
+                    "associations_FN": FN}
+            
+            self.history.append(new_history_row)
         
         
         # create selected feature set
         
         self.selected_features = selected_features
-        # remove the last selected feature if irrelevant:
+        # remove the last selected feature if irrelevant and if not the target itself (always send back one variable at least)
         if len(self.selected_features) < self.config["max_features"] or current_model.stopping_metric(previous_model, self.config["method"]) >= self.config["significance_threshold"]:
-            self.selected_features = self.selected_features[:-1]
+            if len(self.selected_features)>1:
+                self.selected_features = self.selected_features[:-1]
 
         # flag class as being fitted
         self.fitted = True

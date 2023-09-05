@@ -14,10 +14,21 @@ import numpy as np
 import pandas as pd
 import pydash
 
-from modelsources import deepAR
+#from modelsources import deepAR
 
 from torch import device
 import torch.cuda
+
+
+
+# custom error for ARDL model
+
+class NotEnoughDataError(ValueError):
+    def __init__(self, datasize, lags, orders):
+        self.message = "Model needs more lags of the data than provided to make predictions.\nPlease consider increasing the test data size.\nData length: {}, number of lags: {}, number of orders: {}".format(datasize, lags, orders)
+        super().__init__(self.message)
+    
+
 
 ##
 #
@@ -341,17 +352,53 @@ class ARDLModel(LearningModel):
         
         return metric
 
+    def _pad_test_data_to_create_model(self, data):
+        """
+        The not-so-nice thing about creating a copy model for test data,
+        is that model instanciation checks that the data is large enough to learn.
+        Hence, when test data is large enough to be evaluated (timesteps > lags)
+        but not enough to be learned (timesteps < lags*variables + 1), it blocks.
+        The solution I found is to simply pad the data. The fittedvalue method will select
+        the right timestamps at the end.
+        This method is handling the padding.
+        
+        Returns:
+             the padded or nonpadded data
+        Raises NotEnoughDataError if the data is too small for even 1 prediction.
+        """
+        if len(data)<=self.config["constructor"]["lags"] or len(data)<=self.config["constructor"]["order"]:
+            # estimation is impossible, not enough descriptors for 1 prediction
+            raise NotEnoughDataError(len(data), self.config["constructor"]["lags"], self.config["constructor"]["order"])
+        
+        period = self.config["constructor"]["period"] if "period" in self.config["constructor"] else 1
+        period = period+1 if period is not None else 2
+        needed_regressors = (len(data.columns) - 1)*self.config["constructor"]["order"] 
+        needed_regressors += self.config["constructor"]["lags"] + 4
+        needed_regressors *= period
+        if needed_regressors - len(data)>0:
+            zeros = np.zeros((needed_regressors - len(data), len(data.columns)))
+            index = range(len(zeros))
+            zeros = pd.DataFrame(zeros, columns=data.columns, index=index)
+            data = pd.concat([data, zeros])
+            
+        return data
 
     def fittedvalues(self,data=None):
         if data is not None:
             index = data.index  # keep track of original index
-            data = data.reset_index(drop=True)  # predict works better for rangeindex starting at 0
-            model = self.createModel(data)
+            pad_data = self._pad_test_data_to_create_model(data)  # pad just in case test size is small
+            pad_data = pad_data.reset_index(drop=True)  # predict works better for rangeindex starting at 0
+            model = self.createModel(pad_data)
             # use previous parameters 
             fittedvalues = model.predict(self.results._params, start=0,end=len(data)-1, dynamic=False)
-            fittedvalues = fittedvalues.dropna()
-            fittedvalues.index = index[fittedvalues.index]
-            return fittedvalues
+            fittedvalues_nona = fittedvalues.dropna()
+            fittedvalues_nona.index = index[fittedvalues_nona.index]
+            if len(fittedvalues_nona)==0:
+                print(fittedvalues_nona)
+                print(fittedvalues)
+                print(pad_data)
+                print("\n")
+            return fittedvalues_nona
         else:
             return self.results.fittedvalues
 

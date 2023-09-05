@@ -3,6 +3,42 @@ from collections import defaultdict
 import networkx as nx
 
 
+#! TODO: add support for lagged causes (ancestor, connected) computation with declared max lag.
+
+
+
+# extractor functions
+def node_to_tuple(node):
+    lag, variable = node[1:].split(".")
+    return (variable, lag)
+
+def get_all_parents(graph, target):
+    if "L0." + target in graph.nodes:
+        l = list(graph.predecessors("L0." + target))
+        return list(map(node_to_tuple, l))
+    else:
+        return list(graph.predecessors(target))
+
+def get_all_ancestors(graph, target):
+    if "L0." + target in graph.nodes:
+        l = list(nx.ancestors(graph, "L0." + target))
+        return list(map(node_to_tuple, l))
+    else:
+        return list(nx.ancestors(graph, target))
+
+def get_all_connected(graph, target):
+    if "L0." + target in graph.nodes:
+        l = list(nx.node_connected_component(graph.to_undirected(), "L0." + target))
+        return list(map(node_to_tuple, l))
+    else:
+        return list(nx.node_connected_component(graph.to_undirected(), target))
+
+def standardize_df(df):
+    return (df - df.mean(axis=0)) / df.std(axis=0)
+       
+
+
+
 def open_dataset_and_ground_truth(dataset_name: str,
                                   filename: str,
                                   cause_extraction="parents",
@@ -51,22 +87,46 @@ def open_dataset_and_ground_truth(dataset_name: str,
     elif dataset_name=="VARVaried/returns":
         df = pd.read_csv(rootdir + "/data/" + dataset_name + "/" + filename)
         df.columns = [str(i) for i in df.columns]
+    elif dataset_name=="dgp/piecewise_linear/returns":
+        df = pd.read_csv(rootdir + "/data/" + dataset_name + "/" + filename)
+        df.columns = [str(i) for i in df.columns]
+    elif dataset_name=="dgp/monotonic/returns":
+        df = pd.read_csv(rootdir + "/data/" + dataset_name + "/" + filename)
+        df.columns = [str(i) for i in df.columns]
+    elif dataset_name=="dgp/trigonometric/returns":
+        df = pd.read_csv(rootdir + "/data/" + dataset_name + "/" + filename)
+        df.columns = [str(i) for i in df.columns]
+    elif dataset_name=="wikipediaMathEssencials/returns":
+        df = pd.read_csv(rootdir + "/data/" + dataset_name + "/" + filename)
+        df.columns = [str(i) for i in df.columns]
+    elif dataset_name=="Appliances":
+        df = pd.read_csv(rootdir + "/data/" + dataset_name + "/" + filename)
+        df.columns = [str(i) for i in df.columns]
+    elif dataset_name=="AusMacro":
+        df = pd.read_csv(rootdir + "/data/" + dataset_name + "/" + filename)
+        df = df[df.columns[1:]]
+        df.columns = [str(i) for i in df.columns]
+    elif dataset_name=="AusMeteo":
+        df = pd.read_csv(rootdir + "/data/" + dataset_name + "/" + filename)
+        df.columns = [str(i) for i in df.columns]
     else:
         raise Exception("Dataset specified in config file is not implemented")
 
     var_names = list(df.columns)
+    
+    df = standardize_df(df)
 
     if dataset_name[:11] == "SynthNonlin":
         if dataset_name == "SynthNonlin/7ts2h":
             ground_truth_parents = defaultdict(list)
             ground_truth_lags = 10  # could be anything since we don't care about lags in this project
-            ground_truth_parents["A"] = [("D", 1), ("A", 1)] + [("B", i) for i in range(1, ground_truth_lags + 1)]
-            ground_truth_parents["D"] = [("H", 1), ("D", 1)] + [("E", i) for i in range(1, ground_truth_lags + 1)]
+            ground_truth_parents["A"] = [("D", 1), ("A", 1)] #+ [("B", i) for i in range(1, ground_truth_lags + 1)]
+            ground_truth_parents["D"] = [("H", 1), ("D", 1)] #+ [("E", i) for i in range(1, ground_truth_lags + 1)]
             ground_truth_parents["H"] = [("C", 1), ("H", 1)]
             ground_truth_parents["C"] = [("C", 1)]
             ground_truth_parents["F"] = [("C", 1), ("F", 1)]
-            ground_truth_parents["B"] = [("F", 1), ("B", 1)] + [("A", i) for i in range(1, ground_truth_lags + 1)]
-            ground_truth_parents["E"] = [("B", 1), ("E", 1)] + [("D", i) for i in range(1, ground_truth_lags + 1)]
+            ground_truth_parents["B"] = [("F", 1), ("B", 1)] #+ [("A", i) for i in range(1, ground_truth_lags + 1)]
+            ground_truth_parents["E"] = [("B", 1), ("E", 1)] #+ [("D", i) for i in range(1, ground_truth_lags + 1)]
         else:
             raise Exception("Dataset specified in argument is not implemented")
 
@@ -140,7 +200,55 @@ def open_dataset_and_ground_truth(dataset_name: str,
         ground_truth_lags = 5
         for cause, effect, lag in df_truth.values:
             ground_truth_parents[str(effect)].append((str(cause), lag))
+            
+    elif dataset_name=="dgp/piecewise_linear/returns":
+        g_truth_name = "dgp/piecewise_linear/ground_truths/"+filename
+        df_truth = pd.read_csv(rootdir + "data/" + g_truth_name, header=None, sep=",")
+        ground_truth_parents = defaultdict(list)
+        ground_truth_lags = 10
+        for cause, effect, lag in df_truth.values:
+            ground_truth_parents[str(effect)].append((str(cause), lag))
+                        
+    elif dataset_name=="dgp/monotonic/returns":
+        g_truth_name = "dgp/monotonic/ground_truths/"+filename
+        df_truth = pd.read_csv(rootdir + "data/" + g_truth_name, header=None, sep=",")
+        ground_truth_parents = defaultdict(list)
+        ground_truth_lags = 10
+        for cause, effect, lag in df_truth.values:
+            ground_truth_parents[str(effect)].append((str(cause), lag))
+                        
+    elif dataset_name=="dgp/trigonometric/returns":
+        g_truth_name = "dgp/trigonometric/ground_truths/"+filename
+        df_truth = pd.read_csv(rootdir + "data/" + g_truth_name, header=None, sep=",")
+        ground_truth_parents = defaultdict(list)
+        ground_truth_lags = 10
+        for cause, effect, lag in df_truth.values:
+            ground_truth_parents[str(effect)].append((str(cause), lag))
+            
+    elif dataset_name=="wikipediaMathEssencials/returns":
+        g_truth_name = "wikipediaMathEssencials/ground_truths/"+filename
+        df_truth = pd.read_csv(rootdir + "data/" + g_truth_name, header=None, sep=",")
+        ground_truth_parents = defaultdict(list)
+        #there is no reason to assume particular lag information from this dataset.
+        #therefore lag information in ground truth should not be taken into account.
+        #a default value is put here
+        ground_truth_lags = 10
+        for cause, effect in df_truth.values:
+            ground_truth_parents[str(effect)].append((str(cause), 1))
     
+    elif dataset_name=="Appliances":
+        var_names = ["Appliances"]
+        return df, var_names, None, None
+
+    elif dataset_name=="AusMacro":
+        if filename == "data_0_original.csv":
+            var_names = ["RGDP","CPI-ALL"]
+        elif filename == "data_1_added_IBR.csv":
+            var_names = ["IBR"]
+        return df, var_names, None, None
+    elif dataset_name=="AusMeteo":
+        return df, var_names, None, None
+            
     else:
         raise Exception("Dataset specified in argument is not implemented")
 
@@ -177,26 +285,9 @@ def open_dataset_and_ground_truth(dataset_name: str,
         else:
             summary_graph[cause][effect]["lags"].append(lag)
 
-    # extractor functions
-
-    def get_all_parents(graph, target):
-        if "L0." + target in graph.nodes:
-            return list(graph.predecessors("L0." + target))
-        else:
-            return list(graph.predecessors(target))
-
-    def get_all_ancestors(graph, target):
-        if "L0." + target in graph.nodes:
-            return list(nx.ancestors(graph, "L0." + target))
-        else:
-            return list(nx.ancestors(graph, target))
-
-    def get_all_connected(graph, target):
-        if "L0." + target in graph.nodes:
-            return list(nx.node_connected_component(graph.to_undirected(), "L0." + target))
-        else:
-            return list(nx.node_connected_component(graph.to_undirected(), target))
-
+    
+    # get causes variables    
+    
     causes_attributes_dict = defaultdict(list)
 
     for target_name in var_names:
@@ -210,8 +301,17 @@ def open_dataset_and_ground_truth(dataset_name: str,
             raise Exception("causeExtraction method specified in config file is not implemented")
 
         causes_attributes_dict[target_name] = list(map(str,causes_attributes))
+        
+    # get lagged causes (variables, lag)
+    # due to the difficulty of specifying a maximum lag, only parent set is returned
+    
+    lagged_causes_attributes_dict = defaultdict(list)
+    for target_name in var_names:
+        lagged_causes_attributes = get_all_parents(ground_truth_graph, target_name)
 
-    return df, var_names, causes_attributes_dict
+        lagged_causes_attributes_dict[target_name] = lagged_causes_attributes
+
+    return df, var_names, causes_attributes_dict, lagged_causes_attributes_dict
 
 
 
