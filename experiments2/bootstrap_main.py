@@ -119,7 +119,7 @@ def generate_optuna_objective_function(fs_name, cls_name, dataset_setup, objecti
         # rather than check the validity of every configuration, it is simple to catch the exceptions
         # coming from such configurations.
         try:
-            df_results, df_params, df_bootstrap = launch_experiment(config_file, config_name, run_bootstrap=True)
+            df_params, df_bootstrap = launch_experiment(config_file, config_name, run_bootstrap=True)
         except NotEnoughDataError as e:
             print("Configuration",trial.number,"failed with error:\n",str(e))
             raise e
@@ -127,7 +127,7 @@ def generate_optuna_objective_function(fs_name, cls_name, dataset_setup, objecti
         
         # save resulting data
         memorize["params"].append(df_params)
-        memorize["results"].append(df_results)
+        #memorize["results"].append(df_results)
         memorize["bootstrap"].append(df_bootstrap)
         
         return df_bootstrap[objective].mean()
@@ -176,7 +176,7 @@ def full_experiment(dataset, fs_name, cls_name, seed=0):
             bootstrap_df = pd.concat(results["bootstrap"])
             
             save_append(params_df,"./results/optuna_bootstrap/params/"+dataset+"_"+filename_xt+"_"+target+".csv")
-            save_append(results_df,"./results/optuna_bootstrap/test_stats/"+dataset+"_"+filename_xt+"_"+target+".csv")
+            #save_append(results_df,"./results/optuna_bootstrap/test_stats/"+dataset+"_"+filename_xt+"_"+target+".csv")
             save_append(bootstrap_df,"./results/optuna_bootstrap/bootstrap_stats/"+dataset+"_"+filename_xt+"_"+target+".csv")
 
 

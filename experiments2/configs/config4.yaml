@@ -1,0 +1,48 @@
+CLS:
+    NAME: "ARDLModel"
+    CONFIG: 
+        constructor:
+            lags: 10
+            order: 10
+            causal: True
+            trend: "ct"
+            seasonal: False
+            period: null
+            missing: "drop"
+        fit:
+            cov_type: "HC0"
+DATASET:
+    PATH: "wikipediaMathEssencials/returns"
+    NAME: "wikipedia"
+    CAUSES: "parents"
+    TARGET_CHOICE: "sampling"
+    MAXIMUM_NUMBER_TARGETS: 100
+FOLDS:
+    NUMBER_FOLDS: 5
+    WINDOW_SIZE: 0.5
+    STRATEGY: "fixed_start"
+FS:
+    NAME: "ChronOMP"
+    CONFIG:
+        association: "Pearson"
+        association_config:
+            return_type: "p-value"
+            lags: 10
+            selection_rule: "max"
+        model: "ARDL"
+        model_config:
+            constructor:
+                lags: 10
+                order: 10
+                causal: True
+                trend: "ct"
+                seasonal: False
+                period: null
+                missing: "drop"
+            fit:
+                cov_type: "HC0"
+        config:
+            significance_threshold: 0.05
+            method: "f-test"
+            max_features: 7
+            choose_oracle: True

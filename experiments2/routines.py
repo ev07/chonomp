@@ -188,10 +188,10 @@ def full_experiment(config_file, config_name, run_bootstrap=False):
             
             # COMPUTE stats for the selected set
             #
-            selection_mode = fs_instance.selection_mode
-            stats = compute_stats_selected(len(data.columns), selected, causes, lagged_causes, selection_mode)
-            stats["FS_time"] = t
-            selected_statistics.append(stats)
+            #selection_mode = fs_instance.selection_mode
+            #stats = compute_stats_selected(len(data.columns), selected, causes, lagged_causes, selection_mode)
+            #stats["FS_time"] = t
+            #selected_statistics.append(stats)
             
             # ESTIMATE classifier in train also, get fitted on test
             #
@@ -210,13 +210,13 @@ def full_experiment(config_file, config_name, run_bootstrap=False):
         
         # COMPUTE mean aggregated selected statistics
         #
-        selected_statistics = dict([(key,np.mean([s[key] for s in selected_statistics])) for key in selected_statistics[0]])
+        #selected_statistics = dict([(key,np.mean([s[key] for s in selected_statistics])) for key in selected_statistics[0]])
         
         # COMPUTE stats for the model
         #
         fittedvalues = pd.concat(test_fittedvalues)
         truevalues = pd.concat(test_truevalues)
-        test_statistics = compute_metrics(fittedvalues, truevalues)
+        #test_statistics = compute_metrics(fittedvalues, truevalues)
         
         # COMPUTE bootstrap stats if necessary
         if run_bootstrap:
@@ -226,10 +226,10 @@ def full_experiment(config_file, config_name, run_bootstrap=False):
         
         # PRODUCE result row
         #
-        base_row = {**data_descriptors, "config_name": config_name, "start_time": start_time}
-        stats_row = {**base_row, **selected_statistics, **test_statistics}
+        #base_row = {**data_descriptors, "config_name": config_name, "start_time": start_time}
+        #stats_row = {**base_row, **selected_statistics, **test_statistics}
         
-        results.append(stats_row)
+        #results.append(stats_row)
         
     # RECORD hyperparameters in a dataframe
     base_row = {**CLS_descriptors, **FS_descriptors, "config_name": config_name, "start_time": start_time}
@@ -237,11 +237,12 @@ def full_experiment(config_file, config_name, run_bootstrap=False):
     experiment_descriptors.append(base_row)
     
     # SAVE results
-    df_results = pd.DataFrame.from_records(results)
+    #df_results = pd.DataFrame.from_records(results)
     df_params = pd.DataFrame.from_records(experiment_descriptors)
     if run_bootstrap:
         df_bootstrap = pd.DataFrame.from_records(bootstrap_results)
-        return df_results, df_params, df_bootstrap
+        #return df_results, df_params, df_bootstrap
+        return df_params, df_bootstrap
         
     return df_results, df_params
 
