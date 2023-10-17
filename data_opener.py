@@ -42,18 +42,25 @@ def standardize_df(df):
 def open_dataset_and_ground_truth(dataset_name: str,
                                   filename: str,
                                   cause_extraction="parents",
-                                  rootdir="."):
+                                  rootdir=".",
+                                  compute_window_causal_graph=False,
+                                  window_size="max_direct"):
     """
     Open a file in a dataset family, where the ground truth is known:
     Params:
      - dataset_name: name of the dataset family
      - filename: name of the file containing the MTS instance
+     (note: /data/<dataset_name>/<filename> is the complete path, with filename including the extension)
      - cause_extraction (optional): the method to compute the relevant variables
      - rootdir (optional): string indicating the root repository
-    Returns
+     - computed_window_causal_graph (optional): bool set to True to compute window causal graph
+     - window_size (optional): lag selection strategy for the window causal graph. Default is "max_direct" which takes the maximal lag of a cause.
+    Returns:
      - df: the dataframe containing the MTS
-     - var_names: the list of attribute names
-     - causes_attributes_dict: dictionnary associating each attribute to the list of its relevant predictors.
+     - var_names: the list of attribute names that can be forecasting target
+     - causes_attributes_dict: dictionary associating each attribute to the list of its relevant predictors.
+     - lagged_attributes_dict: dictionary associating each attribute to the list of its relevant predictors, containing lag information.
+     - (optional) if compute_window_causal_graph is True, return the window causal graph as a networkx Digraph object
     """
 
     if dataset_name[:11] == "SynthNonlin":
@@ -276,8 +283,10 @@ def open_dataset_and_ground_truth(dataset_name: str,
     # summary graph (no lags)
     summary_graph = nx.DiGraph()
     summary_graph.add_nodes_from(var_names)
+    maxlag = 0
     for cause, effect in ground_truth_graph.edges:
         lag = cause[1:cause.find(".")]
+        maxlag = max([maxlag, lag])
         cause = cause[cause.find(".") + 1:]
         effect = effect[effect.find(".") + 1:]
         if not summary_graph.has_edge(cause, effect):
@@ -285,6 +294,27 @@ def open_dataset_and_ground_truth(dataset_name: str,
         else:
             summary_graph[cause][effect]["lags"].append(lag)
 
+    # window causal graph
+    if compute_window_causal_graph:
+        if window_size=="max_direct":
+            nlags = maxlag
+        window_graph = nx.DiGraph()
+        node_names = []
+        for var in df.columns:
+            for lag in range(0, nlags):
+                node_names.append("L" + str(lag) + "." + str(var))
+        window_graph.add_nodes_from(node_names)
+        for cause, effect in ground_truth_graph.edges:
+            lag = int(cause[1:cause.find(".")])
+            cause = cause[cause.find(".") + 1:]
+            effect = effect[effect.find(".") + 1:]
+            for L in range(lag, nlags):
+                window_graph.add_edge("L" + str(L) + "." + cause, "L" + str(L - lag) + "." + effect)
+        #window_graph_pos = dict([(node,
+        #                          (1 - int(node[1:node.find(".")]) / data_config['pastPointsToForecast'],
+        #                           1 - VAR_NAMES.index(node[node.find(".") + 1:]) / len(VAR_NAMES)))
+        #                         for node in window_graph.nodes()])
+    
     
     # get causes variables    
     
@@ -310,7 +340,10 @@ def open_dataset_and_ground_truth(dataset_name: str,
         lagged_causes_attributes = get_all_parents(ground_truth_graph, target_name)
 
         lagged_causes_attributes_dict[target_name] = lagged_causes_attributes
-
+    
+    if compute_window_causal_graph:
+        return df, var_names, causes_attributes_dict, lagged_causes_attributes_dict, window_graph
+        
     return df, var_names, causes_attributes_dict, lagged_causes_attributes_dict
 
 
