@@ -340,7 +340,10 @@ def open_dataset_and_ground_truth(dataset_name: str,
         lagged_causes_attributes = get_all_parents(ground_truth_graph, target_name)
 
         lagged_causes_attributes_dict[target_name] = lagged_causes_attributes
-
+    
+    if compute_window_causal_graph:
+        return df, var_names, causes_attributes_dict, lagged_causes_attributes_dict, window_graph
+        
     return df, var_names, causes_attributes_dict, lagged_causes_attributes_dict
 
 
