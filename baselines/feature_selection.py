@@ -14,6 +14,9 @@ class FeatureSelector():
     selection_mode = None  
 
     def __init__(self, config, target):
+        """
+        Params:
+        """
         self.config=config
         self.target = target
         

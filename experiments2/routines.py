@@ -58,28 +58,61 @@ def get_CLS(config_file):
 
     
 
-def data_generator_main(config_file, rootdir="../", seed=0):
+def data_generator_main(config_file, rootdir="../", seed=0, ):
+    """
+    Generator function that either go through the whole data folder,
+    or just one file and just one target.
+    Params:
+        config_file: dictionary containing the whole experimental config. Must contain:
+            "DATASET": dictionary:
+                "PATH": string, path of the dataset within the ./data/ folder
+                "NAME": string, dataset name
+                "CAUSES": string, what cause extraction strategy to use
+                "TARGET_CHOICE": string, how to choose the targets among the available variables
+                "MAXIMUM_NUMBER_TARGETS": int, bound on the maximal number of target per file.
+                (optional) "FILENAME": if a specific file alone must be run, name of this file.
+                (optional) "TARGET": if a specific target alone must be run, name of this target.
+                (optional) "HOLDOUT": bool, set to True to keep a hold out set at the end of the dataset.
+                (optional) "HOLDOUT_SIZE": int, number of hold out observations to keep.
+        rootdir (optional): str, path to root of the project (where to find ./data/)
+        seed (optional): int, seed for the random sampling of variables.
+        
+    Returns:
+        data: the dataframe containing the data
+        target: name of the variable to predict
+        nonlagged causes: list of relevant variables in GT, or None
+        lagged causes: list of relevant (variables, lags) in GT, or None
+        descriptors: data descriptors for logging
+    """
     data_info = config_file["DATASET"]
     data_dir = data_info["PATH"]
     data_name = data_info["NAME"]
     cause_extraction = data_info["CAUSES"]
     target_extraction = data_info["TARGET_CHOICE"]
     maximum_target_extraction = data_info["MAXIMUM_NUMBER_TARGETS"]
+    holdout = False if "HOLDOUT" not in data_info else data_info["HOLDOUT"]
+    holdout_size = 0 if "HOLDOUT_SIZE" not in data_info else data_info["HOLDOUT_SIZE"]
+    
+    filelist = [data_info["FILENAME"]] if "FILENAME" in data_info else os.listdir(rootdir + "data/" + data_dir + "/")
     
     rng = np.random.default_rng(seed)
     
-    #handle single file given in config file
-    filelist = [data_info["FILENAME"]] if "FILENAME" in data_info else os.listdir(rootdir + "data/" + data_dir + "/")
     
     for filename in filelist:
         if not os.path.isfile(rootdir + "data/" + data_dir + "/" + filename):
             continue
+        
         data, var, causes, lagged_causes = open_dataset_and_ground_truth(data_dir, filename, cause_extraction, rootdir)
+        
+        # remove hold out test set if given
+        if holdout:
+            data = data.loc[:-holdout_size]
+        
         # make sure to avoid extracting all targets in large datasets
         if target_extraction == "all":
-            target_set = data.columns
+            target_set = var
         elif target_extraction == "sampling":
-            target_set = rng.choice(data.columns,size=(maximum_target_extraction,), replace=False, shuffle=False)
+            target_set = rng.choice(var,size=(maximum_target_extraction,), replace=False, shuffle=False)
         elif target_extraction == "given":
             target_set = var
             
@@ -150,7 +183,7 @@ def compute_bootstrap_metrics(y_pred, y_true):
     return Estimator().compute_BBCCV(y_pred, y_true)
 
 
-def full_experiment(config_file, config_name, run_bootstrap=False):
+def full_experiment(config_file, config_name, run_bootstrap=False, compute_selected_stats=False):
     start_time = time.time()
     rootdir = "../"
 
@@ -188,13 +221,15 @@ def full_experiment(config_file, config_name, run_bootstrap=False):
             
             # COMPUTE stats for the selected set
             #
-            #selection_mode = fs_instance.selection_mode
-            #stats = compute_stats_selected(len(data.columns), selected, causes, lagged_causes, selection_mode)
-            #stats["FS_time"] = t
-            #selected_statistics.append(stats)
+            if compute_selected_stats:
+                selection_mode = fs_instance.selection_mode
+                stats = compute_stats_selected(len(data.columns), selected, causes, lagged_causes, selection_mode)
+                stats["FS_time"] = t
+                selected_statistics.append(stats)
             
             # ESTIMATE classifier in train also, get fitted on test
             #
+            t = time.time()
             cls_instance = CLS_instance_generator(target)
             if selection_mode == "variable":  # entire data columns selected
                 if cls_instance.is_autoregressive and target not in selected: # target must be an input
@@ -204,19 +239,22 @@ def full_experiment(config_file, config_name, run_bootstrap=False):
                 fittedvalues  = cls_instance.fit_predict(train, test, selected)
             else:
                 raise NotImplementedError("Cannot use lag FS method with this classifier")
+            t = time.time() - t
+            stats["CLS_time"] = t
             
             test_fittedvalues.append(fittedvalues)
             test_truevalues.append(test[target])
         
         # COMPUTE mean aggregated selected statistics
         #
-        #selected_statistics = dict([(key,np.mean([s[key] for s in selected_statistics])) for key in selected_statistics[0]])
+        if compute_selected_stats:
+            selected_statistics = dict([(key,np.mean([s[key] for s in selected_statistics])) for key in selected_statistics[0]])
         
         # COMPUTE stats for the model
         #
         fittedvalues = pd.concat(test_fittedvalues)
         truevalues = pd.concat(test_truevalues)
-        #test_statistics = compute_metrics(fittedvalues, truevalues)
+        test_statistics = compute_metrics(fittedvalues, truevalues)
         
         # COMPUTE bootstrap stats if necessary
         if run_bootstrap:
@@ -226,8 +264,8 @@ def full_experiment(config_file, config_name, run_bootstrap=False):
         
         # PRODUCE result row
         #
-        #base_row = {**data_descriptors, "config_name": config_name, "start_time": start_time}
-        #stats_row = {**base_row, **selected_statistics, **test_statistics}
+        base_row = {**data_descriptors, "config_name": config_name, "start_time": start_time}
+        stats_row = {**base_row, **selected_statistics, **test_statistics}
         
         #results.append(stats_row)
         
@@ -237,11 +275,10 @@ def full_experiment(config_file, config_name, run_bootstrap=False):
     experiment_descriptors.append(base_row)
     
     # SAVE results
-    #df_results = pd.DataFrame.from_records(results)
+    df_results = pd.DataFrame.from_records(results)
     df_params = pd.DataFrame.from_records(experiment_descriptors)
     if run_bootstrap:
         df_bootstrap = pd.DataFrame.from_records(bootstrap_results)
-        #return df_results, df_params, df_bootstrap
         return df_params, df_bootstrap
         
     return df_results, df_params

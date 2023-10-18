@@ -23,6 +23,17 @@ class Estimator():
     #define if the model needs the target column to be in the input
     is_autoregressive = False
     
+    def __init__(self, config, target):
+        self.config = config
+    
+    def fit_predict(self, data_train, data_test):
+        """retourne une series pandas correspondant aux valeurs estimés sur le jeu de donnée de test
+         1) 
+        """
+        
+        return None
+    
+    
     def compute_metrics(self, y_pred, y_true, align=True):
         if align:
             y_true = y_true.loc[y_pred.index]  # align time series
