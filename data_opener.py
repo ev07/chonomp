@@ -286,7 +286,7 @@ def open_dataset_and_ground_truth(dataset_name: str,
     maxlag = 0
     for cause, effect in ground_truth_graph.edges:
         lag = cause[1:cause.find(".")]
-        maxlag = max([maxlag, lag])
+        maxlag = max([maxlag, int(lag)])
         cause = cause[cause.find(".") + 1:]
         effect = effect[effect.find(".") + 1:]
         if not summary_graph.has_edge(cause, effect):
