@@ -11,7 +11,7 @@ rootdir = '../'
 sys.path.append(rootdir)
 
 from baselines.estimators import Estimator, ARDLModel, SVRModel, KNeighborsRegressorModel
-from baselines.feature_selection import ChronOMP
+from baselines.feature_selection import ChronOMP, BivariateGranger, ModifiedRFE
 
 from data_opener import open_dataset_and_ground_truth
 
@@ -32,7 +32,9 @@ def get_FS(config_file):
     fs_info = config_file["FS"]
     config = fs_info["CONFIG"]
     
-    algo = {"ChronOMP":ChronOMP}[fs_info["NAME"]]
+    algo = {"ChronOMP":ChronOMP,
+            "BivariateGranger":BivariateGranger,
+            "ModifiedRFE":ModifiedRFE}[fs_info["NAME"]]
     
     constructor = lambda target: algo(config, target)
     descriptors = flatten_dict(fs_info,name="FS")
@@ -106,7 +108,7 @@ def data_generator_main(config_file, rootdir="../", seed=0, ):
         
         # remove hold out test set if given
         if holdout:
-            data = data.loc[:-holdout_size]
+            data = data.iloc[:-holdout_size]
         
         # make sure to avoid extracting all targets in large datasets
         if target_extraction == "all":
@@ -165,8 +167,8 @@ def compute_stats_selected(totalcolumns, selected, causes, lagged_causes, select
         else:
             raise NotImplementedError("Feature Selection algorithm has unrecognized selection mode (see FeatureSelector base class)")
         sTP = sTrue & sPred
-        recall = len(sTP)/len(sTrue) if len(sTrue)>0 else None
-        precision = len(sTP)/len(sPred) if len(sPred)>0 else None
+        recall = len(sTP)/len(sTrue) if len(sTrue)>0 else 0
+        precision = len(sTP)/len(sPred) if len(sPred)>0 else 0
         row = {**row, 
                "precision": precision,
                "recall": recall,
@@ -178,9 +180,9 @@ def compute_stats_selected(totalcolumns, selected, causes, lagged_causes, select
     
 
 def compute_metrics(y_pred, y_true):
-    return Estimator().compute_metrics(y_pred, y_true)
+    return Estimator(None, None).compute_metrics(y_pred, y_true)
 def compute_bootstrap_metrics(y_pred, y_true):
-    return Estimator().compute_BBCCV(y_pred, y_true)
+    return Estimator(None, None).compute_BBCCV(y_pred, y_true)
 
 
 def full_experiment(config_file, config_name, run_bootstrap=False, compute_selected_stats=False):
@@ -266,8 +268,7 @@ def full_experiment(config_file, config_name, run_bootstrap=False, compute_selec
         #
         base_row = {**data_descriptors, "config_name": config_name, "start_time": start_time}
         stats_row = {**base_row, **selected_statistics, **test_statistics}
-        
-        #results.append(stats_row)
+        results.append(stats_row)
         
     # RECORD hyperparameters in a dataframe
     base_row = {**CLS_descriptors, **FS_descriptors, "config_name": config_name, "start_time": start_time}

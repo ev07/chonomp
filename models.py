@@ -244,10 +244,10 @@ class VARModel(LearningModel):
         return self.results.df_resid
 
     
-    def has_too_many_parameters(self):
+    def has_too_many_parameters(self, ratio):
         nbparams = len(self.results.params)
         nobs = self.results.nobs
-        return nobs/nbparams<10
+        return nobs/nbparams<ratio
         
     def statistics(self, data=None):
         # handle statistics on both training and test sets
@@ -284,6 +284,16 @@ class ARDLModel(LearningModel):
         self.results = None  # to store the VARResults instance
 
     def fit(self, data):
+        """Make sure that number of parameters are enough compared to the data size
+        """
+        if isinstance(self.config["constructor"]["order"], int):
+            maxlag = self.config["constructor"]["order"]
+        else:
+            maxlag = max(self.config["constructor"]["order"])
+        maxlag = max([maxlag, self.config["constructor"]["lags"]])
+        if len(data.index) - maxlag < maxlag*len(data.columns)+4:
+            raise NotEnoughDataError(len(data.index), self.config["constructor"]["lags"], self.config["constructor"]["order"])
+    
         self.data = data
         self.model = self.createModel(data)
         self.results = self.model.fit(**self.config["fit"])
@@ -420,10 +430,10 @@ class ARDLModel(LearningModel):
     def dof(self):
         return self.results.df_resid
     
-    def has_too_many_parameters(self):
+    def has_too_many_parameters(self, ratio):
         nbparams = len(self.results.params)
         nobs = self.results.nobs
-        return nobs/nbparams<10
+        return nobs/nbparams<ratio
     
     def statistics(self, data=None):
         # handle statistics on both training and test sets

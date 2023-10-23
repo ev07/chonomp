@@ -24,7 +24,7 @@ class FeatureSelector():
         pass
         
     def get_selected_features(self):
-        pass
+        return self.selected
 
 
 
@@ -98,7 +98,7 @@ class ModifiedRFE(FeatureSelector):
         # if any lag was selected, select the whole feature
         indexes = np.any(np.array(rfe.support_).reshape((-1,len(data.columns))), axis=0)
         selected = data.columns[indexes]
-        
+        self.selected=selected
         return selected
         
 class RFE(ModifiedRFE):
@@ -120,7 +120,7 @@ class RFE(ModifiedRFE):
             for j in range(mask.shape[1]):
                 if mask[i,j]:
                     selected.append((data.columns[i],self.lags-j))
-                 
+        self.selected=selected
         return selected
 
 
@@ -147,7 +147,10 @@ class BivariateGranger(FeatureSelector):
                 pvalue = results.test_causality(column, causing=self.target, signif=signif).pvalue
                 if pvalue > signif:
                     selected.append(column)
+        self.selected=selected
         return selected
+    
+    
 
 
 ##################################################################
@@ -180,6 +183,7 @@ def complete_config_from_parameters(name, hyperparameters):
                      { "significance_threshold": hyperparameters.get("significance_threshold", 0.05),
                        "method": hyperparameters.get("method", "f-test"),
                        "max_features": hyperparameters.get("max_features", 5),
+                       "valid_obs_param_ratio": hyperparameters.get("valid_obs_param_ratio", 10),
                        "choose_oracle": False
                      }
                  }
@@ -215,19 +219,20 @@ def generate_optuna_parameters(name, trial):
         hp["association"] = trial.suggest_categorical("association",["Pearson","Spearman"])
         hp["significance_threshold"] = trial.suggest_categorical("significance_threshold",[0.001, 0.005, 0.01, 0.05, 0.1])
         hp["method"] = trial.suggest_categorical("method",["f-test", "wald-test", "lr-test"])
+        hp["max_features"] = trial.suggest_int("max_features", 5, 50, log=True)
+        hp["valid_obs_param_ratio"] = trial.suggest_categorical("valid_obs_param_ratio",[1., 5., 10.])
     elif name == "ModifiedRFE" or name == "RFE":
         hp["model"] = "SVR"
         hp["n_features_to_select"] = trial.suggest_int("n_features_to_select", 5, 50, log=True)
         hp["step"] = trial.suggest_int("step", 4, 10, log=False)
-        
         hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
         hp["kernel"] = trial.suggest_categorical("kernel",["linear","rbf","poly", "sigmoid"])
         hp["degree"] = trial.suggest_int("degree",2,5,1,log=False)
-        hp["coef0"] = trial.suggest_loguniform("coef0", 0., 2.)
-        hp["C"] = trial.suggest_loguniform("C", 0.05, 20.)
+        hp["coef0"] = trial.suggest_float("coef0", 0.01, 2., log=True)
+        hp["C"] = trial.suggest_float("C", 0.05, 20.,log=True)
     elif name == "BivariateGranger":
-        hp["maxlags"] = trial.suggest_int("lags",5,20,1,log=False)
-        hp["alpha_level"] = trial.suggest_categorical("alpha_level",[0.001, 0.005, 0.01, 0.05, 0.1])
+        hp["maxlags"] = trial.suggest_int("maxlags",5,20,1,log=False)
+        hp["alpha_level"] = trial.suggest_float("alpha_level",0.0001,  0.1, log=True)
     return hp
 
     

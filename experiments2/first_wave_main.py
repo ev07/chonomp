@@ -34,6 +34,34 @@ def setup_dataset(dataset_name, filename, target):
             "TARGET_CHOICE": "all",
             "MAXIMUM_NUMBER_TARGETS": None}
             }
+    elif dataset_name == "VAR10000":
+        config = {"DATASET":{
+            "PATH": "VARLarge/returns",
+            "CAUSES": "parents",
+            "TARGET_CHOICE": "sampling",
+            "MAXIMUM_NUMBER_TARGETS": 10}
+            }
+    elif dataset_name == "7ts2h":
+        config = {"DATASET":{
+            "PATH": "SynthNonlin/7ts2h",
+            "CAUSES": "parents",
+            "TARGET_CHOICE": "all",
+            "MAXIMUM_NUMBER_TARGETS": None}
+            }
+    elif dataset_name == "fMRI":
+        config = {"DATASET":{
+            "PATH": "fMRI_processed_by_Nauta/returns/our_selection",
+            "CAUSES": "parents",
+            "TARGET_CHOICE": "all",
+            "MAXIMUM_NUMBER_TARGETS": None}
+            }
+    elif dataset_name == "CLIM":
+        config = {"DATASET":{
+            "PATH": "TestCLIM_N-5_T-250/returns",
+            "CAUSES": "parents",
+            "TARGET_CHOICE": "all",
+            "MAXIMUM_NUMBER_TARGETS": None}
+            }
     elif dataset_name == "pairwiseLinear":
         config = {"DATASET":{
             "PATH": "dgp/piecewise_linear/returns",
@@ -126,7 +154,7 @@ def generate_optuna_objective_function(fs_name, cls_name, dataset_setup, objecti
             df_results, df_params = launch_experiment(config_file, config_name, run_bootstrap=False, compute_selected_stats=True)
         except NotEnoughDataError as e:
             print("Configuration",trial.number,"failed with error:\n",str(e))
-            raise e
+            #raise e
             return np.inf
         
         # save resulting data
@@ -184,7 +212,7 @@ def full_experiment(dataset, fs_name, cls_name, seed=0):
             
             params_df = pd.concat(results["params"])
             results_df = pd.concat(results["results"])
-            bootstrap_df = pd.concat(results["bootstrap"])
+            #bootstrap_df = pd.concat(results["bootstrap"])
             
             save_append(params_df,"./results/optuna/params/"+dataset+"_"+filename_xt+"_"+target+".csv")
             save_append(results_df,"./results/optuna/test_stats/"+dataset+"_"+filename_xt+"_"+target+".csv")
@@ -197,9 +225,10 @@ def full_experiment(dataset, fs_name, cls_name, seed=0):
                 print("\t\tEstimated time for whole pipeline:",len(target_set)*len(filelist)*t, "seconds")
 
 
-
 if __name__=="__main__":
-    full_experiment("VAR10", "ChronOMP", "SVRModel")
+    _, data, fs, model = sys.argv
+    print(data)
+    full_experiment(data, fs, model)
 
 
 

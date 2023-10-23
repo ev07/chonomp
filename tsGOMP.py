@@ -432,7 +432,7 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
         if len_selected_features >= self.config["max_features"]:
             return False
         # if the number of observations is too low compared to the number of parameters, stop
-        if current_model.has_too_many_parameters():
+        if current_model.has_too_many_parameters(self.config["valid_obs_param_ratio"]):
             return False
         # if this is the first iteration, continue
         if len_selected_features == 1:
@@ -468,7 +468,9 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
         
         while self._stopping_criterion(current_model, previous_model, len(selected_features)):
             # find maximally associative variable to current residuals
-            candidate_variable_list = list(candidate_variables)
+            candidate_variable_list = list(candidate_variables) 
+            if len(candidate_variable_list)==0:  # verify that we still have candidates
+                break
             
             time_association_start = time.time()
             measured_associations = self.association_objects.association(residuals, data[candidate_variable_list])
