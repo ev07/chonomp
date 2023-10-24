@@ -11,7 +11,7 @@ rootdir = '../'
 sys.path.append(rootdir)
 
 from baselines.estimators import Estimator, ARDLModel, SVRModel, KNeighborsRegressorModel
-from baselines.feature_selection import ChronOMP
+from baselines.feature_selection import ChronOMP, BivariateGranger, ModifiedRFE, VectorLassoLars
 
 from data_opener import open_dataset_and_ground_truth
 
@@ -32,7 +32,10 @@ def get_FS(config_file):
     fs_info = config_file["FS"]
     config = fs_info["CONFIG"]
     
-    algo = {"ChronOMP":ChronOMP}[fs_info["NAME"]]
+    algo = {"ChronOMP":ChronOMP,
+            "BivariateGranger":BivariateGranger,
+            "VectorLassoLars":VectorLassoLars,
+            "ModifiedRFE":ModifiedRFE}[fs_info["NAME"]]
     
     constructor = lambda target: algo(config, target)
     descriptors = flatten_dict(fs_info,name="FS")
@@ -101,20 +104,27 @@ def get_folds_from_data(data, config_file):
     # apply the FCCV approach
     config = config_file["FOLDS"]
     numberfolds = config["NUMBER_FOLDS"]
-    windowsize = int(config["WINDOW_SIZE"]*len(data))  # the starting window size
+    
+    if config["WINDOW_SIZE"]>0 and config["WINDOW_SIZE"]<=1:
+        windowsize = int(config["WINDOW_SIZE"]*len(data))  # the starting window size for the train part
+    elif config["NUMBER_FOLDS"]==1 and config["WINDOW_SIZE"]<=0:
+        windowsize = len(data) + config["WINDOW_SIZE"]  # in case we are given the length of a validation set
+        
     strategy = config["STRATEGY"]
     
     if strategy == "fixed_start":
         for fold in range(numberfolds):
             start = 0
-            middle = windowsize + int(((len(data)-windowsize)/(numberfolds+1))*fold)
-            end = windowsize + int(((len(data)-windowsize)/(numberfolds+1))*(fold+1))
+            middle = windowsize + int(((len(data)-windowsize)/(numberfolds))*fold)
+            end = windowsize + int(((len(data)-windowsize)/(numberfolds))*(fold+1))
+            if end>len(data):end=len(data)  # in case of integer division
             yield data.iloc[start:middle,:], data.iloc[middle:end,:]
     elif strategy == "rolling":
         for fold in range(numberfolds):
-            start = int(((len(data)-windowsize)/(numberfolds+1))*fold)
-            middle = windowsize + int(((len(data)-windowsize)/(numberfolds+1))*fold)
-            end = windowsize + int(((len(data)-windowsize)/(numberfolds+1))*(fold+1))
+            start = int(((len(data)-windowsize)/(numberfolds))*fold)
+            middle = windowsize + int(((len(data)-windowsize)/(numberfolds))*fold)
+            end = windowsize + int(((len(data)-windowsize)/(numberfolds))*(fold+1))
+            if end>len(data):end=len(data)  # in case of integer division
             yield data.iloc[start:middle,:], data.iloc[middle:end,:]
     
     

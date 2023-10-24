@@ -284,6 +284,16 @@ class ARDLModel(LearningModel):
         self.results = None  # to store the VARResults instance
 
     def fit(self, data):
+        """Make sure that number of parameters are enough compared to the data size
+        """
+        if isinstance(self.config["constructor"]["order"], int) or isinstance(self.config["constructor"]["order"], float):
+            maxlag = self.config["constructor"]["order"]
+        else:
+            maxlag = max(self.config["constructor"]["order"])
+        maxlag = max([maxlag, self.config["constructor"]["lags"]])
+        if len(data.index) - maxlag < maxlag*len(data.columns)+4:
+            raise NotEnoughDataError(len(data.index), self.config["constructor"]["lags"], self.config["constructor"]["order"])
+    
         self.data = data
         self.model = self.createModel(data)
         self.results = self.model.fit(**self.config["fit"])
