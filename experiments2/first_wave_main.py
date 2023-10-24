@@ -16,6 +16,7 @@ import baselines.estimators
 import baselines.feature_selection
 from data_opener import open_dataset_and_ground_truth
 from models import NotEnoughDataError
+from baselines.feature_selection import MaximalSelectedError
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
@@ -152,9 +153,11 @@ def generate_optuna_objective_function(fs_name, cls_name, dataset_setup, objecti
         # coming from such configurations.
         try:
             df_results, df_params = launch_experiment(config_file, config_name, run_bootstrap=False, compute_selected_stats=True)
-        except NotEnoughDataError as e:
+        except NotEnoughDataError as e:  # ARDL model was not given enough data
             print("Configuration",trial.number,"failed with error:\n",str(e))
             #raise e
+            return np.inf
+        except MaximalSelectedError as e:  # SelectFromModel was given too many feature compared to available
             return np.inf
         
         # save resulting data
@@ -180,11 +183,12 @@ def full_experiment(dataset, fs_name, cls_name, seed=0):
     filelist = list(os.listdir(rootdir + "data/" + data_dir + "/"))
     
     first_evaluation_flag = True  # flag for the first call to objective, to get time estimation.
+    count = 0
     
     for i,filename in enumerate(filelist):
         if not os.path.isfile(rootdir + "data/" + data_dir + "/" + filename):
             continue
-        print("New file, time since begining is", time.time()-start_time, "(", i, "/", len(filelist), ")")
+        print("New file",filename ,"time since begining is", time.time()-start_time, "(", i, "/", len(filelist), ")")
         
         data, var, _, _ = open_dataset_and_ground_truth(data_dir, filename, "parents", rootdir)
         # make sure to avoid extracting all targets in large datasets
@@ -197,6 +201,7 @@ def full_experiment(dataset, fs_name, cls_name, seed=0):
             
         for target in target_set:
             print("\tTarget", target, "beggining")
+            count+=1
             
             if first_evaluation_flag: # record time on first iteration
                 time_begin = time.time()
@@ -223,6 +228,8 @@ def full_experiment(dataset, fs_name, cls_name, seed=0):
                 t = time.time()-time_begin
                 print("\t\tOne variable took",t ,"seconds.")
                 print("\t\tEstimated time for whole pipeline:",len(target_set)*len(filelist)*t, "seconds")
+            if count>5:
+                return
 
 
 if __name__=="__main__":

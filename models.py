@@ -286,7 +286,7 @@ class ARDLModel(LearningModel):
     def fit(self, data):
         """Make sure that number of parameters are enough compared to the data size
         """
-        if isinstance(self.config["constructor"]["order"], int):
+        if isinstance(self.config["constructor"]["order"], int) or isinstance(self.config["constructor"]["order"], float):
             maxlag = self.config["constructor"]["order"]
         else:
             maxlag = max(self.config["constructor"]["order"])

@@ -3,6 +3,7 @@ import os
 
 from sklearn.svm import SVR
 from sklearn.neighbors import KNeighborsRegressor
+from sklearn.linear_model import LassoLars
 import pandas as pd
 import numpy as np
 
@@ -128,7 +129,13 @@ class KNeighborsRegressorModel(SKLearnVectorized):
         self.lags = config["lags"]
         self.model = KNeighborsRegressor(**config["skconfig"])
         
-
+class LassoLarsModel(SKLearnVectorized):
+     def __init__(self, config, target):
+        self.target = target
+        self.lags = config["lags"]
+        self.model = LassoLars(**config["skconfig"])
+        
+        
 ##################################################################
 #                                                                #
 #   Create configs for completion and optuna                     #
@@ -165,6 +172,11 @@ def complete_config_from_parameters(name, hyperparameters):
                               "leaf_size":hyperparameters.get("leaf_size", 30),
                               "p":hyperparameters.get("p", 2),
                               "metric":"minkowski"}}
+    elif name == "LassoLarsModel":
+        config = {"lags":hyperparameters.get("lags", 10),
+                  "skconfig":{"alpha":hyperparameters.get("alpha", 1.),
+                              "fit_intercept":True,
+                              "fit_path":False}}
     return config
 
 def generate_optuna_parameters(name, trial):
@@ -185,6 +197,9 @@ def generate_optuna_parameters(name, trial):
         hp["weights"] = trial.suggest_categorical("weights",["uniform", "distance"])
         hp["leaf_size"] = trial.suggest_int("leaf_size",20,50,1,log=True)
         hp["p"] = trial.suggest_int("p", 1, 2, 1, log=False)
+    elif name == "LassoLarsModel":
+        hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
+        hp["alpha"] = trial.suggest_float("alpha", 0.1, 10., log=True)
     return hp
 
 
