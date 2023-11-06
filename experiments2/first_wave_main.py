@@ -5,9 +5,10 @@ import pandas as pd
 import numpy as np
 
 import optuna
-from optuna.samplers import RandomSampler
+from optuna.samplers import RandomSampler, GridSampler
 
 from routines import full_experiment as launch_experiment
+from routines import TargetNotSelectedError
 
 rootdir = '../'
 sys.path.append(rootdir)
@@ -63,7 +64,7 @@ def setup_dataset(dataset_name, filename, target):
             "TARGET_CHOICE": "all",
             "MAXIMUM_NUMBER_TARGETS": None}
             }
-    elif dataset_name == "pairwiseLinear":
+    elif dataset_name == "piecewiseLinear":
         config = {"DATASET":{
             "PATH": "dgp/piecewise_linear/returns",
             "CAUSES": "parents",
@@ -116,7 +117,7 @@ def setup_dataset(dataset_name, filename, target):
     config["DATASET"]["FILENAME"] = filename
     config["DATASET"]["TARGET"] = target
     config["DATASET"]["HOLDOUT"] = True
-    config["DATASET"]["HOLDOUT_SIZE"] = 50
+    config["DATASET"]["HOLDOUT_RATIO"] = 0.1
     return config
 
 
@@ -158,6 +159,9 @@ def generate_optuna_objective_function(fs_name, cls_name, dataset_setup, objecti
             #raise e
             return np.inf
         except MaximalSelectedError as e:  # SelectFromModel was given too many feature compared to available
+            return np.inf
+        except TargetNotSelectedError as e:  # no feature selected, cannot compute performance of the forecaster
+            print("Configuration",trial.number,"selected no features.")
             return np.inf
         
         # save resulting data
@@ -208,13 +212,22 @@ def full_experiment(dataset, fs_name, cls_name, seed=0):
             
             dataset_setup = setup_dataset(dataset, filename, target)
         
+            # if we are using the GridSampler, we need to specify a search space
+            fs_space = baselines.feature_selection.generate_optuna_search_space(fs_name)
+            cls_space = baselines.estimators.generate_optuna_search_space(cls_name)
+            space = {**fs_space, **cls_space}
+        
+            # GridSampler launch
+            studylength = np.prod([len(x) for _,x in space.items()])
+            if first_evaluation_flag:
+                print("\t\tNumber of configurations to be evaluated:",studylength)
             objective, results = generate_optuna_objective_function(fs_name, cls_name, dataset_setup)
-            study = optuna.create_study(sampler=RandomSampler())
-            study.optimize(objective, n_trials=100)
+            study = optuna.create_study(sampler=GridSampler(space))
+            study.optimize(objective, n_trials=studylength)
             
             #results contains all the training information from the trials
             filename_xt = os.path.splitext(filename)[0]
-            
+            #print(results)
             params_df = pd.concat(results["params"])
             results_df = pd.concat(results["results"])
             #bootstrap_df = pd.concat(results["bootstrap"])
@@ -228,7 +241,7 @@ def full_experiment(dataset, fs_name, cls_name, seed=0):
                 t = time.time()-time_begin
                 print("\t\tOne variable took",t ,"seconds.")
                 print("\t\tEstimated time for whole pipeline:",len(target_set)*len(filelist)*t, "seconds")
-            if count>5:
+            if count>20:
                 return
 
 

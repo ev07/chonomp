@@ -15,6 +15,9 @@ from baselines.feature_selection import ChronOMP, BivariateGranger, ModifiedRFE,
 
 from data_opener import open_dataset_and_ground_truth
 
+class TargetNotSelectedError(ValueError):
+    pass
+
 
 
 
@@ -94,7 +97,7 @@ def data_generator_main(config_file, rootdir="../", seed=0, ):
     target_extraction = data_info["TARGET_CHOICE"]
     maximum_target_extraction = data_info["MAXIMUM_NUMBER_TARGETS"]
     holdout = False if "HOLDOUT" not in data_info else data_info["HOLDOUT"]
-    holdout_size = 0 if "HOLDOUT_SIZE" not in data_info else data_info["HOLDOUT_SIZE"]
+    holdout_ratio = 0. if "HOLDOUT_RATIO" not in data_info else data_info["HOLDOUT_RATIO"]
     
     filelist = [data_info["FILENAME"]] if "FILENAME" in data_info else os.listdir(rootdir + "data/" + data_dir + "/")
     
@@ -109,6 +112,9 @@ def data_generator_main(config_file, rootdir="../", seed=0, ):
         
         # remove hold out test set if given
         if holdout:
+            holdout_size = int(holdout_ratio*len(data))
+            if holdout_size < 50:
+                holdout_size = 50
             data = data.iloc[:-holdout_size]
         
         # make sure to avoid extracting all targets in large datasets
@@ -137,11 +143,16 @@ def get_folds_from_data(data, config_file):
     # apply the FCCV approach
     config = config_file["FOLDS"]
     numberfolds = config["NUMBER_FOLDS"]
+    windowsize = config["WINDOW_SIZE"]
     
-    if config["WINDOW_SIZE"]>0 and config["WINDOW_SIZE"]<=1:
-        windowsize = int(config["WINDOW_SIZE"]*len(data))  # the starting window size for the train part
-    elif config["NUMBER_FOLDS"]==1 and config["WINDOW_SIZE"]<=0:
-        windowsize = len(data) + config["WINDOW_SIZE"]  # in case we are given the length of a validation set
+    if windowsize>0 and windowsize<=1:  # Float given
+        windowsize = int(windowsize*len(data))  # the starting window size for the train part
+    elif numberfolds==0: # Case for the holdout set
+        holdout_size = int(windowsize*len(data))
+        if holdout_size < 50:
+            holdout_size = 50
+        windowsize = len(data) - holdout_size
+        numberfolds = 1
         
     strategy = config["STRATEGY"]
     
@@ -229,6 +240,10 @@ def full_experiment(config_file, config_name, run_bootstrap=False, compute_selec
             selected = fs_instance.get_selected_features()
             t = time.time() - t
             
+            
+            if target not in selected: # target must be an input <- we consider autoregressive models
+                selected.append(target)
+            
             # COMPUTE stats for the selected set
             #
             if compute_selected_stats:
@@ -242,8 +257,6 @@ def full_experiment(config_file, config_name, run_bootstrap=False, compute_selec
             t = time.time()
             cls_instance = CLS_instance_generator(target)
             if selection_mode == "variable":  # entire data columns selected
-                if cls_instance.is_autoregressive and target not in selected: # target must be an input
-                    selected.append(target)
                 fittedvalues  = cls_instance.fit_predict(train[selected], test[selected])
             elif selection_mode == "variable, lag" and cls_instance.support_feature_filtering:
                 fittedvalues  = cls_instance.fit_predict(train, test, selected)

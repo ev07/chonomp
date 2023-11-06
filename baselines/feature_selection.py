@@ -154,12 +154,18 @@ class VectorLassoLars(FeatureSelector):
     def fit(self, data):
         X, y, _ = self.prepare_data_vectorize(data, self.config["lags"])
         
+
         # There can be an error if the number of feature given in argument is too large.
+        # Default strategy is to replace the parameter by the size of the feature space.
+        # A parameter can be given explicitely to raise an error in a custom class instead.
         # This is where we handle it, with a custom error that we send back.
-        if self.config["max_features"] > X.shape[1]:
-            raise MaximalSelectedError(self.config["max_features"], X.shape[1])
+        max_features = self.config["max_features"]
+        if max_features > X.shape[1] and self.config.get("raiseMaximalSelectedError",False):
+            max_features = X.shape[1]
+        elif max_features > X.shape[1]:
+            raise MaximalSelectedError(max_features, X.shape[1])
             
-        FS=SelectFromModel(estimator=self.model, threshold=self.config["threshold"], max_features=self.config["max_features"])
+        FS=SelectFromModel(estimator=self.model, threshold=self.config["threshold"], max_features=max_features)
         FS = FS.fit(X, y)
         
         mask = FS.get_support(indices=False)
@@ -169,7 +175,6 @@ class VectorLassoLars(FeatureSelector):
 
     def get_selected_features(self):
         return self.selected
-
 
 
 
@@ -270,7 +275,7 @@ def complete_config_from_parameters(name, hyperparameters):
         config = {"model": hyperparameters.get("model", "ARDL"),
                   "model_config": 
                      { "constructor" : {"lags":hyperparameters.get("lags", 10),
-                                        "order":hyperparameters.get("order", 10),
+                                        "order":hyperparameters.get("order", hyperparameters.get("lags", 10)),
                                         "causal":True,
                                         "trend":hyperparameters.get("trend", "ct"),
                                         "seasonal":hyperparameters.get("seasonal", False),
@@ -350,11 +355,39 @@ def generate_optuna_parameters(name, trial):
     elif name == "VectorLassoLars":
         hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
         hp["max_features"] = trial.suggest_int("max_features", 5, 50, log=True)
-        hp["threshold"] = trial.suggest_float("threshold", 0.00001, 0.01, log=True)
-        hp["alpha"] = trial.suggest_float("alpha", 0.1, 10., log=True)
+        hp["threshold"] = trial.suggest_float("threshold", 0.000001, 0.01, log=True)
+        hp["alpha"] = trial.suggest_float("alpha", 0.001, 10., log=True)
     return hp
 
     
-    
+def generate_optuna_search_space(name):
+    hp = dict()
+    if name == "ChronOMP":
+        hp["model"] = ["ARDL"]
+        hp["lags"] = [5,10,15,20]
+        hp["trend"] = ["n","t","c", "ct"]
+        hp["association"] = ["Pearson","Spearman"]
+        hp["significance_threshold"] = [0.001, 0.005, 0.01, 0.05, 0.1]
+        hp["method"] = ["f-test", "wald-test", "lr-test"]
+        hp["max_features"] = [50]
+        hp["valid_obs_param_ratio"] = [1., 5., 10.]
+    elif name == "ModifiedRFE" or name == "RFE":
+        hp["lags"] = [5,10,15,20]
+        hp["model"] = ["SVR"]
+        hp["n_features_to_select"] = [1,2,3,4,5,6,7,8,10,15,20,30,40,50]
+        hp["step"] = [2, 4, 6, 8, 10]
+        hp["kernel"] = ["linear","rbf","poly", "sigmoid"]
+        hp["degree"] = [2,3,4,5]
+        hp["coef0"] = [0.01, 0.05, 0.01, 0.5, 0.1, 0.5, 1., 2.]
+        hp["C"] = [0.05, 0.1, 0.2, 0.5, 1., 2., 5., 10., 20.]
+    elif name == "BivariateGranger":
+        hp["maxlags"] = [5,10,15,20]
+        hp["alpha_level"] = [0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05,  0.1]
+    elif name == "VectorLassoLars":
+        hp["lags"] = [5,10,15,20]
+        hp["max_features"] = [50]
+        hp["threshold"] = [0.000001, 0.000005,0.00001, 0.00005, 0.0001, 0.0005, 0.001, 0.005, 0.01]
+        hp["alpha"] = [0.001, 0.002, 0.005,0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1., 2., 5., 10.]
+    return hp
 
 

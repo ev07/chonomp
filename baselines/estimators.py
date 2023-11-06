@@ -188,8 +188,8 @@ def generate_optuna_parameters(name, trial):
     elif name == "SVRModel":
         hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
         hp["kernel"] = trial.suggest_categorical("kernel",["linear","rbf","poly", "sigmoid"])
-        hp["degree"] = trial.suggest_int("degree",2,5,1,log=False)
-        hp["coef0"] = trial.suggest_float("coef0", 0.001, 2.)
+        #hp["degree"] = trial.suggest_int("degree",2,5,1,log=False)
+        hp["coef0"] = trial.suggest_float("coef0", 0.0, 2.)
         hp["C"] = trial.suggest_float("C", 0.05, 20., log=True)
     elif name == "KNeighborsRegressorModel":
         hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
@@ -199,11 +199,30 @@ def generate_optuna_parameters(name, trial):
         hp["p"] = trial.suggest_int("p", 1, 2, 1, log=False)
     elif name == "LassoLarsModel":
         hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
-        hp["alpha"] = trial.suggest_float("alpha", 0.1, 10., log=True)
+        hp["alpha"] = trial.suggest_float("alpha", 0.001, 10., log=True)
     return hp
 
 
-
+def generate_optuna_search_space(name):
+    hp = dict()
+    if name == "ARDLModel":
+        hp["lags"] = [5,10,15,20]
+        hp["trend"] = ["n","t","c", "ct"]
+    elif name == "SVRModel":
+        hp["lags"] = [5,10,15,20]
+        hp["kernel"] = ["rbf", "sigmoid"]
+        hp["coef0"] = [0.0]
+        hp["C"] = [ 0.1, 1., 10.]
+    elif name == "KNeighborRegressorModel":
+        hp["lags"] = [5,10,15,20]
+        hp["n_neighbors"] = [3,5, 7, 10, 15, 20, 50]
+        hp["weights"] = trial.suggest_categorical("weights",["uniform", "distance"])
+        hp["leaf_size"] = [20, 30, 40, 50]
+        hp["p"] = [ 1, 2]
+    elif name == "LassoLarsModel":
+        hp["lags"] = [5,10,15,20]
+        hp["alpha"] = [0.001, 0.002, 0.005,0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1., 2., 5., 10.]
+    return hp
 
 
 

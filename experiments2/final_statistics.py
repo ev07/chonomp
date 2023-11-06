@@ -253,8 +253,8 @@ def run_best_configs_test_set(dataset, filename, target, configs):
     data_config = setup_dataset(dataset, filename, target)
     data_config["DATASET"]["HOLDOUT"]=False
     
-    folds_config = {"FOLDS":{"NUMBER_FOLDS": 1,
-              "WINDOW_SIZE": -50,
+    folds_config = {"FOLDS":{"NUMBER_FOLDS": 0,
+              "WINDOW_SIZE": 0.1,
               "STRATEGY": "fixed_start"}}
     
     results = []
