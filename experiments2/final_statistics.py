@@ -254,7 +254,7 @@ def run_best_configs_test_set(dataset, filename, target, configs):
     data_config["DATASET"]["HOLDOUT"]=False
     
     folds_config = {"FOLDS":{"NUMBER_FOLDS": 0,
-              "WINDOW_SIZE": 0.1,
+              "WINDOW_SIZE": 0.9,
               "STRATEGY": "fixed_start"}}
     
     results = []
@@ -262,7 +262,7 @@ def run_best_configs_test_set(dataset, filename, target, configs):
     for config in configs:
         config = {**config, **data_config, **folds_config}
         name = config["config_name"]+str(config["start_time"])
-        df_results, df_params = full_experiment(config, name, compute_selected_stats=True)
+        df_results, df_params = full_experiment(config, name, compute_selected_stats=True, return_selected=True)
         results.append(df_results)
         params.append(df_params)
     

@@ -147,28 +147,31 @@ def get_folds_from_data(data, config_file):
     
     if windowsize>0 and windowsize<=1:  # Float given
         windowsize = int(windowsize*len(data))  # the starting window size for the train part
-    elif numberfolds==0: # Case for the holdout set
-        holdout_size = int(windowsize*len(data))
+    if numberfolds==0: # Case for the holdout set
+        holdout_size = len(data) - windowsize
         if holdout_size < 50:
             holdout_size = 50
-        windowsize = len(data) - holdout_size
+            windowsize = len(data) - holdout_size
         numberfolds = 1
         
     strategy = config["STRATEGY"]
+    
     
     if strategy == "fixed_start":
         for fold in range(numberfolds):
             start = 0
             middle = windowsize + int(((len(data)-windowsize)/(numberfolds))*fold)
             end = windowsize + int(((len(data)-windowsize)/(numberfolds))*(fold+1))
-            if end>len(data):end=len(data)  # in case of integer division
+            if end>len(data):
+                end=len(data)  # in case of integer division
             yield data.iloc[start:middle,:], data.iloc[middle:end,:]
     elif strategy == "rolling":
         for fold in range(numberfolds):
             start = int(((len(data)-windowsize)/(numberfolds))*fold)
             middle = windowsize + int(((len(data)-windowsize)/(numberfolds))*fold)
             end = windowsize + int(((len(data)-windowsize)/(numberfolds))*(fold+1))
-            if end>len(data):end=len(data)  # in case of integer division
+            if end>len(data):
+                end=len(data)  # in case of integer division
             yield data.iloc[start:middle,:], data.iloc[middle:end,:]
     
     
@@ -204,7 +207,7 @@ def compute_bootstrap_metrics(y_pred, y_true):
     return Estimator(None, None).compute_BBCCV(y_pred, y_true)
 
 
-def full_experiment(config_file, config_name, run_bootstrap=False, compute_selected_stats=False):
+def full_experiment(config_file, config_name, run_bootstrap=False, compute_selected_stats=False, return_selected=False):
     start_time = time.time()
     rootdir = "../"
 
@@ -229,6 +232,7 @@ def full_experiment(config_file, config_name, run_bootstrap=False, compute_selec
         test_fittedvalues = []
         test_truevalues = []
         selected_statistics = []
+        selected = []
         
         for train, test in folds:
         
@@ -272,6 +276,8 @@ def full_experiment(config_file, config_name, run_bootstrap=False, compute_selec
         #
         if compute_selected_stats:
             selected_statistics = dict([(key,np.mean([s[key] for s in selected_statistics])) for key in selected_statistics[0]])
+        if return_selected:
+            selected_statistics["SelectedSet"] = selected
         
         # COMPUTE stats for the model
         #
