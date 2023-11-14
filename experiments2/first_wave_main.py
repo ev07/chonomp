@@ -22,6 +22,20 @@ from baselines.feature_selection import MaximalSelectedError
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 
+def fs_cls_pair_already_optimized(dataset, fs_name, cls_name, filename, target):
+    params_dir = "./results/optuna/params/"
+    params_filename = dataset+"_"+os.path.splitext(filename)[0]+"_"+target+".csv"
+    if not os.path.isfile(params_dir+params_filename):
+        return False
+    df_params = pd.read_csv(params_dir+params_filename)
+    df_params = df_params[df_params["FS.NAME"]==fs_name]
+    if len(df_params)==0:
+        return False
+    df_params = df_params[df_params["CLS.NAME"]==cls_name]
+    if len(df_params)==0:
+        return False
+    return True
+
 def save_append(df, path):
     df_0 = pd.read_csv(path) if os.path.isfile(path) else pd.DataFrame()
     df = pd.concat([df_0, df], ignore_index=True, sort=False)
@@ -206,6 +220,10 @@ def full_experiment(dataset, fs_name, cls_name, seed=0):
         for target in target_set:
             print("\tTarget", target, "beggining")
             count+=1
+            
+            # check if results for the given target of the given file have already been computed
+            if fs_cls_pair_already_optimized(dataset, fs_name, cls_name, filename, target):
+                continue
             
             if first_evaluation_flag: # record time on first iteration
                 time_begin = time.time()

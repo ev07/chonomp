@@ -367,8 +367,8 @@ def generate_optuna_search_space(name):
         hp["lags"] = [5,10,15,20]
         hp["trend"] = ["n","t","c", "ct"]
         hp["association"] = ["Pearson","Spearman"]
-        hp["significance_threshold"] = [0.001, 0.005, 0.01, 0.05, 0.1]
-        hp["method"] = ["f-test", "wald-test", "lr-test"]
+        hp["significance_threshold"] = [0.001, 0.01, 0.05, 0.1]
+        hp["method"] = ["f-test"]
         hp["max_features"] = [50]
         hp["valid_obs_param_ratio"] = [1., 5., 10.]
     elif name == "ModifiedRFE" or name == "RFE":
@@ -382,12 +382,12 @@ def generate_optuna_search_space(name):
         hp["C"] = [0.05, 0.1, 0.2, 0.5, 1., 2., 5., 10., 20.]
     elif name == "BivariateGranger":
         hp["maxlags"] = [5,10,15,20]
-        hp["alpha_level"] = [0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05,  0.1]
+        hp["alpha_level"] = [0.001, 0.01, 0.05,  0.1]
     elif name == "VectorLassoLars":
         hp["lags"] = [5,10,15,20]
         hp["max_features"] = [50]
-        hp["threshold"] = [0.000001, 0.000005,0.00001, 0.00005, 0.0001, 0.0005, 0.001, 0.005, 0.01]
-        hp["alpha"] = [0.001, 0.002, 0.005,0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1., 2., 5., 10.]
+        hp["threshold"] = [0.000001, 0.00001,  0.0001,  0.001, 0.01]
+        hp["alpha"] = [0.001, 0.01, 0.1, 1.,  10., 100.]
     return hp
 
 
