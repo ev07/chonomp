@@ -212,8 +212,8 @@ class ChronOMP(FeatureSelector):
         hp["lags"] = [5,10,15]
         hp["trend"] = ["n","ct"]
         hp["association"] = ["Pearson","Spearman"]
-        hp["significance_threshold"] = [0.00001, 0.00005]
-        hp["method"] = ["f-test"]
+        hp["significance_threshold"] = [0.00001, 0.0001, 0.001, 0.01, 0.05]
+        hp["method"] = ["f-test", "lr-test"]
         hp["max_features"] = [50]
         hp["valid_obs_param_ratio"] = [1.]
         return hp
@@ -271,7 +271,7 @@ class VectorLassoLars(FeatureSelector):
         # A parameter can be given explicitely to raise an error in a custom class instead.
         # This is where we handle it, with a custom error that we send back.
         max_features = self.config["max_features"]
-        if max_features > X.shape[1] and self.config.get("raiseMaximalSelectedError",False):
+        if max_features > X.shape[1] and not self.config.get("raiseMaximalSelectedError",False):
             max_features = X.shape[1]
         elif max_features > X.shape[1]:
             raise MaximalSelectedError(max_features, X.shape[1])
