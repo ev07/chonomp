@@ -158,6 +158,8 @@ def setup_config(trial, fs_name, cls_name):
 def generate_optuna_objective_function(fs_name, cls_name, dataset_setup, objective="R2"):
     memorize = {"params":[], "results":[]}
     def optuna_objective_function(trial):
+        if trial.number%1 == 0:
+            print("\t\t\tTrial number", trial.number)
         config_file = setup_config(trial, fs_name, cls_name)
         config_file = {**config_file, **dataset_setup}
         
@@ -208,7 +210,7 @@ def full_experiment(dataset, fs_name, cls_name, seed=0):
             continue
         print("New file",filename ,"time since begining is", time.time()-start_time, "(", i, "/", len(filelist), ")")
         
-        data, var, _, _ = open_dataset_and_ground_truth(data_dir, filename, "parents", rootdir)
+        _, var, _, _ = open_dataset_and_ground_truth(data_dir, filename, "parents", rootdir, skip_causal_step=True)
         # make sure to avoid extracting all targets in large datasets
         if target_extraction == "all":
             target_set = var
@@ -216,7 +218,9 @@ def full_experiment(dataset, fs_name, cls_name, seed=0):
             target_set = rng.choice(var,size=(maximum_target_extraction,), replace=False, shuffle=False)
         elif target_extraction == "given":
             target_set = var
-            
+        
+        
+        
         for target in target_set:
             print("\tTarget", target, "beggining")
             count+=1

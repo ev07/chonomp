@@ -17,11 +17,11 @@ from rpy2.robjects.packages import importr, data
 from rpy2.robjects import numpy2ri, pandas2ri
 import rpy2.robjects as ro
 pandas2ri.activate()
-from rpy2.robjects import default_converter
+from rpy2.robjects import default_converter, conversion
 glmnet = importr("glmnet")
 
 
-def lasso_granger(series, P, alpha):
+def lasso_granger(series, P):
     """Lasso Granger
     A. Arnold, Y. Liu, and N. Abe. Temporal causal modeling with graphical granger methods. In KDD, 200
     :param series: (N,T) matrix
@@ -33,28 +33,34 @@ def lasso_granger(series, P, alpha):
     N, T = np.shape(series)
     Am = np.zeros((T - P, P * N))
     bm = np.zeros((T - P, 1))
-    for i in range(P, T - 1):
-        bm[i - P] = series[0, i + 1]
+    for i in range(P, T):
+        bm[i - P] = series[0, i]
         Am[i - P, :] = np.fliplr(series[:, i - P:i]).flatten()
 
-    Am2 = pd.DataFrame(Am.T)
+    Am2 = pd.DataFrame(Am)
     bm2 = pd.Series(bm[:,0])
-    with (ro.default_converter + pandas2ri.converter).context():
+    with conversion.localconverter(default_converter + pandas2ri.converter):
         Am2 = ro.conversion.get_conversion().py2rpy(Am2)
         bm2 = ro.conversion.get_conversion().py2rpy(bm2)
         
-    # Lasso using GLMnet
-    fit = glmnet.glmnet(x=Am2, y=bm2, family='gaussian', alpha=1)
-    vals2 = fit['beta']  # array of coefficient
-
-    # Outputting aic metric for variable into (N,P) matrix
-    th = 0
-    aic = (LA.norm(Am @ vals2 - bm, 2)) ** 2 / (T - P) + np.sum(np.abs(vals2) > th) * 2 / (T - P)
+        # Lasso using GLMnet
+        fit = glmnet.glmnet(x=Am2, y=bm2, family='gaussian', alpha=1)
+        #vals2 = ro.r.predict(fit,type="coefficients")
+        
+        vals2 = fit['beta']  # array of coefficient
+        vals2 = ro.r["as.matrix"](vals2)
+    
+    # Using the AIC to select lambda
+    tLL = - (1-fit["dev.ratio"])*fit["nulldev"]
+    k = fit["df"]
+    aic = -tLL + 2*k
+    solution_index = np.argmin(aic)
+    vals3 = vals2[:,solution_index]
 
     # Reformatting the results into (N,P) matrix
     n1Coeff = np.zeros((N, P))
     for i in range(N):
-        n1Coeff[i, :] = vals2[i * P:(i + 1) * P].reshape(P)
+        n1Coeff[i, :] = vals3[i * P:(i + 1) * P].reshape(P)
 
     return n1Coeff
 
@@ -91,7 +97,7 @@ def normalize_input(X: np.ndarray, normalized_data: bool, normalization: str, n_
     return Xnorm
 
 
-def calculate_w_wmax(X: np.ndarray, threshold: float, lambda_reg: float, regression_algorithm: str, normalized_data: bool, normalization: str) -> Tuple[np.ndarray, np.ndarray]:
+def calculate_w_wmax(X: np.ndarray, threshold: float, lambda_reg: float, regression_algorithm: str, normalized_data: bool, normalization: str, order) -> Tuple[np.ndarray, np.ndarray]:
     """
     Calculate the lag between each time series and the target time series
 
@@ -120,13 +126,11 @@ def calculate_w_wmax(X: np.ndarray, threshold: float, lambda_reg: float, regress
                 nameofvar = 'var' + str(iVar)
                 stats[nameofvar].append(Xnorm[iVar, step])
         data = pd.DataFrame().from_dict(stats)
-        order = n_vars  # a large integer. For lag=1 simulations this can be up to n_vars. This variable must be a large enough integer to check enough past steps for the lag.
-# we assume that the sortest path that corresponds to the minimum lag will correspond to the strongest coefficient of lasso regression
         for i_var in range(n_vars):
             data_pair = X[[n_vars, i_var],:]  #target must be first for the implementation of lasso here.
-            adjacency_matrix = lasso_granger(data_pair, order, lambda_reg) 
+            adjacency_matrix = lasso_granger(data_pair, order) 
             maxlag_iloc = np.argmax(np.abs(adjacency_matrix[1]))
-            if abs(adjacency_matrix.loc[1, maxlag_iloc]) > threshold: 
+            if abs(adjacency_matrix[1, maxlag_iloc]) > threshold: 
                 w[i_var] = maxlag_iloc
 
     return np.nanmax(w), w
@@ -271,8 +275,13 @@ def calculate_pMR(x1: np.ndarray, Y_wi: np.ndarray, Y_wi_minus_1: np.ndarray, i_
         C = np.vstack((x1[i_candidate, :], Y_wi, x1[other_observed_vars, :], Y_wi_minus_1,
                        np.ones((1, n_iidsamples))))
         C = pd.DataFrame(C.T, columns = range(len(C)))
-        _, rho_part_corr, _, p_part_corr = pingouin.partial_corr(C,0,1, list(range(2,len(C))), alternative='two-sided')
-        rho_MR, p_PRM = rho_part_corr, p_part_corr
+        out_stats = pingouin.partial_corr(C,0,1, list(range(2,len(C.T))), alternative='two-sided')
+        rho_part_corr, p_part_corr = out_stats["r"], out_stats["p-val"]
+        rho_MR, p_MR = rho_part_corr.values[0], p_part_corr.values[0]
+        print(rho_MR)
+        print(p_MR)
+        print(out_stats)
+        print(pingouin.correlation._correl_pvalue(rho_MR, len(C), len(C.columns)))
         #rho_MR_all, p_MR_all = partialcorrel(C.T)
         #p_MR = p_MR_all[0, 1]
         #rho_MR = rho_MR_all[0, 1]
@@ -334,7 +343,8 @@ def calculate_PMR(x1: np.ndarray, xo: np.ndarray, i_candidate: int, other_observ
                        np.ones((1, n_iidsamples))))
     
     C = pd.DataFrame(C.T, columns = range(len(C)))
-    _, rho_part_corr, _, p_part_corr = pingouin.partial_corr(C,0,1, list(range(2,len(C))), alternative='two-sided')
+    out_stats = pingouin.partial_corr(C,0,1, list(range(2,len(C.T))), alternative='two-sided')
+    rho_part_corr, p_part_corr = out_stats["r"], out_stats["p-val"]
     p_PRM = p_part_corr
     #rho_part_corr, p_part_corr = partialcorrel(C.T)
     #p_PRM = p_part_corr[0, 1]
@@ -349,7 +359,7 @@ def list_diff(list1, list2):
     return out
 
 
-def SyPI_method(regression_algorithm: str, relationships: str, normalized_data: bool, normalization: str, lambda_reg: float, p_cond1: float, p_cond2: float, threshold_lasso: float,
+def SyPI_method(regression_algorithm: str, relationships: str, normalized_data: bool, normalization: str, lambda_reg: float, order:int,  p_cond1: float, p_cond2: float, threshold_lasso: float,
          var_direct_causes: set, var_indirect_causes: set, var_non_causes: set, X: np.ndarray) -> Tuple[list, list,
                                                                                                         list, list,
                                                                                                         list, list,
@@ -363,6 +373,7 @@ def SyPI_method(regression_algorithm: str, relationships: str, normalized_data: 
     :param normalized_data: boolean True if want to normalize the data for the lag calculation, False otherwise
     :param normalization: type of normalization 'variance', 'minmax'
     :param lambda_reg: float lambda regularizer for the lasso regression
+    :param order: int number of lags to take into account when computing w_max with lasso.
     :param p_cond1: float threshold1 for conditional dependence
     :param p_cond2: float threshold2 for conditional independence
     :param threshold_lasso: float threshold for lasso coefficients
@@ -383,7 +394,7 @@ def SyPI_method(regression_algorithm: str, relationships: str, normalized_data: 
     n_time_steps = np.shape(X)[1]
 
     # calculate the lag between each time series and the target
-    w_max, w = calculate_w_wmax(X, threshold_lasso, lambda_reg, regression_algorithm, normalized_data, normalization)
+    w_max, w = calculate_w_wmax(X, threshold_lasso, lambda_reg, regression_algorithm, normalized_data, normalization, order)
 
     predicted_causes = []
     strength_of_predicted_causes = []
@@ -410,7 +421,11 @@ def SyPI_method(regression_algorithm: str, relationships: str, normalized_data: 
                                 strength_of_predicted_causes.append(rho_MR)
 
     predicted_non_causes = list_diff(list(range(n_vars)), predicted_causes)
-
+    
+    if var_direct_causes is None:
+        return predicted_causes
+        
+        
     if var_direct_causes == [] and var_indirect_causes == [] and var_non_causes == []:
         print('...No ground truth is provided. I cannot calculate False positives and False negatives...')
         false_positives_predict_direct_and_indirect = []

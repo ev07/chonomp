@@ -1,6 +1,6 @@
 
 
-
+import copy
 import matplotlib.pyplot as plt
 import time
 import numpy as np
@@ -442,29 +442,56 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
         metric = current_model.stopping_metric(previous_model, self.config["method"])
         return metric < threshold
         
+    def _train_model(self, data, selected_set):
+        """Creates a model on the selected variables."""
+        current_model = self.config["model"](self.config["model.config"], target=self.target)
+        current_model.fit(data[selected_set])
 
-    def fit(self, data):
+        return current_model
+    
+    def _initialize_fit(self, initial_selected, data):
+    
+        #prepare the initial regression set
+        if initial_selected == []:
+            initial_selected = [self.target]
+        elif self.target not in initial_selected:
+            initial_selected = [self.target] + initial_selected
+    
+        # initialization of candidate variables
+        candidate_variables = set(data.columns)
+        for variable in initial_selected:
+            candidate_variables.remove(variable)
+            
+        # initialize the N-1 model so that the stopping criterion can be used from the first step
+        if len(initial_selected)==1:
+            previous_model = None  # will be defined during the first iteration
+        else:  # train on the selected, removing the last included variable.
+            previous_model = self._train_model(data, initial_selected[:-1])
+        
+        # initialize the current model
+        time_modeltrain_start = time.time()
+        current_model = self._train_model(data, initial_selected)
+        time_modeltrain_end = time.time()
+        
+        residuals = current_model.residuals()
+        
+        return initial_selected, candidate_variables, previous_model, current_model, residuals, time_modeltrain_start, time_modeltrain_end
+
+    def _forward(self, data, initial_selected=[]):
         # data: pandas dataframe
         #      index is the timestamp
         #      column is the feature name
         
-        # initialization of selected and candidate variables, starting from an autoregressive model
-        candidate_variables = set(data.columns)
-        candidate_variables.remove(self.target)
-        selected_features = [self.target]
+        # train first model with the list of covariate given.
+        selected_features, candidate_variables, previous_model, current_model, residuals, time_modeltrain_start, time_modeltrain_end = self._initialize_fit(initial_selected, data)
 
-        previous_model = None  # will be defined during the first iteration
-        time_modeltrain_start = time.time()
-        current_model = self._initialize_model(data)
-        time_modeltrain_end = time.time()
-        
-        residuals = current_model.residuals()
-
+        #logging
         if self.ground_truth is not None:
             oracle_order = [var for var in self.ground_truth]
             if self.target in oracle_order:
                 oracle_order.remove(self.target)
         algo_should_have_stopped = False
+        
         
         while self._stopping_criterion(current_model, previous_model, len(selected_features)):
             # find maximally associative variable to current residuals
@@ -472,12 +499,14 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
             if len(candidate_variable_list)==0:  # verify that we still have candidates
                 break
             
+            # compute associations
             time_association_start = time.time()
             measured_associations = self.association_objects.association(residuals, data[candidate_variable_list])
             time_association_end = time.time()
             
             chosen_index = np.argmax(measured_associations)
             chosen_variable = candidate_variable_list[chosen_index]
+            
             
             if self.verbosity:
                 # the following only works when the association outputs a p-value
@@ -509,6 +538,8 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
             # put the chosen variable in the selected feature set
             selected_features.append(chosen_variable)
             candidate_variables.remove(chosen_variable)
+            
+            # modify ground truth if provided, to keep on computing causal stats.
             if self.ground_truth is not None:
                 if chosen_variable in oracle_order:
                     oracle_order.remove(chosen_variable)
@@ -517,8 +548,7 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
             # compute new model with this variable
             previous_model = current_model
             time_modeltrain_start = time.time()
-            current_model = self.config["model"](self.config["model.config"], target=self.target)
-            current_model.fit(data[selected_features])
+            current_model = self._train_model(data, selected_features)
             time_modeltrain_end = time.time()
             # change residuals
             residuals = current_model.residuals()
@@ -577,11 +607,95 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
         
         self.selected_features = selected_features
         # remove the last selected feature if irrelevant and if not the target itself (always send back one variable at least)
-        if len(self.selected_features) < self.config["max_features"] or current_model.stopping_metric(previous_model, self.config["method"]) >= self.config["significance_threshold"]:
-            if len(self.selected_features)>1:
+        if len(self.selected_features)>1:
+            if current_model.stopping_metric(previous_model, self.config["method"]) >= self.config["significance_threshold"]:
                 self.selected_features = self.selected_features[:-1]
 
-        # flag class as being fitted
+
+    def fit(self, data, initial_selected=[]):
+        """
+        Given a dataset, compute the forward pass over it.
+        It is possible to give a set of initially selected columns, to start the algorithm forward phase by a non-empty provided set.
+        
+        Params:
+            data: pd.DataFrame, containing the forecasted MTS. Must be ordered by timestamp increasing.
+            initial_selected (optional): list of str, the list of columns to use as initial set of the forward phase. Default is empty.
+        """
+    
+        self._forward(data, initial_selected)
+        self.fitted = True 
+        
+    def fit_from_selected_list(self, data, selected_list):
+        """
+        Given a list of ordered column names, corresponding to a run of the algorithm with the same config except for the selection threshold,
+        run the current configuration by using the list to avoid computing the correlations, shortening the process.
+        
+        Params:
+            data: pd.DataFrame, the dataframe containing the forecasted MTS. Must be ordered by timestamp increasing.
+            selected_list: list of str, ordered list of the covariates (columns in the dataframe),
+                 that have been insered in order by a previous run of the algorithm with same parameters except the stopping thresholds
+                 (significance_threshold, max_features, valid_obs_params_ratio).
+        """
+        #first step, runing each model and verifying that the stopping criterion does not stop the algorithm before end of given sequence
+        
+        # initial model
+        selected_features, _, previous_model, current_model, _, _, _ = self._initialize_fit([], data)
+        if self.target == selected_list[0]:
+            selected_list = selected_list[1:]
+        elif self.target in selected_list:
+            selected_list.remove(self.target)
+        # loop over variables
+        while self._stopping_criterion(current_model, previous_model, len(selected_features)):
+            candidate_variable_list = list(candidate_variables) 
+            if len(selected_list)==0:  # verify that we still have candidates in the history
+                break
+            next_chosen = selected_list.pop(0)
+            selected_features.append(next_chosen)
+            previous_model = current_model
+            current_model = self._train_model(data, selected_features)
+        # if termination due to stopping criterion, remove the eventual superflous 
+        else:
+            self.selected_features = selected_features
+            # remove the last selected feature if irrelevant and if not the target itself (always send back one variable at least)
+            if len(self.selected_features)>1:
+                if current_model.stopping_metric(previous_model, self.config["method"]) >= self.config["significance_threshold"]:
+                    self.selected_features = self.selected_features[:-1]
+            self.fitted = True
+            return
+        
+        #second step, continuing with the standard algorithm for new selected variable if this point is reached.
+        self._forward(data, initial_selected=selected_list)
         self.fitted = True
-
-
+        
+    def _backward(self, data):
+        """
+        Backward pass testing each of the covariate for nonzero coefficient.
+        The test is Y_t indep X_t-L...X_t-1 | Z_t-L..Z_t-1 where Z are all other covariates including Y_t-L...Y_t-1
+        While there is such a change, keep on conducting backward tests.
+        
+        Params:
+            data: pd.DataFrame, containing the time series that will be forecasted. Must be ordered by timestamp increasing.
+        """
+        selected_set_has_changed = True
+        while selected_set_has_changed:
+            selected_set_has_changed = False  # flag reset
+            selected_features = copy.copy(self.selected_features)
+            full_model = self._train_model(data, selected_features)
+            for column in [x for x in selected_features if x!=self.target]:  # never remove target
+                restricted_model = self._train_model(data, [x for x in selected_features if x!=column])
+                threshold = self.config["significance_threshold_backward"]
+                metric = full_model.stopping_metric(restricted_model, self.config["method_backward"])
+                if metric >= threshold:  # there is no significative difference between the models.
+                    self.selected_features.remove(column)
+                    selected_set_has_changed = True  # set change flag to true
+    
+    def fit_backward(self, data, initial_selected=[]):
+        """
+        Fit the forward-backward version of the algorithm.
+        Params:
+            data: pd.DataFrame, the MTS ordered by timestamp increasing.
+        """
+        self._forward(data, initial_selected=initial_selected)
+        self._backward(data)
+        self.fitted = True
+    

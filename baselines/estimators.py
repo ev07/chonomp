@@ -206,21 +206,21 @@ def generate_optuna_parameters(name, trial):
 def generate_optuna_search_space(name):
     hp = dict()
     if name == "ARDLModel":
-        hp["lags"] = [5,10,15,20]
-        hp["trend"] = ["n","t","c", "ct"]
+        hp["lags"] = [5,10,15]
+        hp["trend"] = ["n","ct"]
     elif name == "SVRModel":
-        hp["lags"] = [5,10,15,20]
+        hp["lags"] = [5,10,15]
         hp["kernel"] = ["rbf", "sigmoid"]
         hp["coef0"] = [0.0]
         hp["C"] = [ 0.1, 1., 10.]
     elif name == "KNeighborRegressorModel":
-        hp["lags"] = [5,10,15,20]
+        hp["lags"] = [5,10,15]
         hp["n_neighbors"] = [5,  10,  50]
         hp["weights"] = trial.suggest_categorical("weights",["uniform", "distance"])
         hp["leaf_size"] = [20, 50]
         hp["p"] = [ 1, 2]
     elif name == "LassoLarsModel":
-        hp["lags"] = [5,10,15,20]
+        hp["lags"] = [5,10,15]
         hp["alpha"] = [0.001,0.01, 0.1,  1.,  10.]
     return hp
 

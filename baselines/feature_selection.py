@@ -11,6 +11,7 @@ from sklearn.feature_selection import SelectFromModel
           
 from statsmodels.tsa.vector_ar.var_model import VAR
 
+from baselines.SyPI import SyPI_method
 
 #  Error class for the SelectFromModel instance, where giving a maximal number of selected variables above the size of the data is impossible.
 
@@ -19,7 +20,11 @@ class MaximalSelectedError(ValueError):
         self.message = "SelectFromModel was given max_features = {} but the number of columns in the data is {}.".format(maxparam, datasize)
         super().__init__(self.message)
 
-# Main class
+##################################################################
+#                                                                #
+#               Feature Selection Base class                     #
+#                                                                #
+##################################################################
 
 class FeatureSelector():
     # whether the feature selection operates on variable (select columns from data): "variable"
@@ -49,7 +54,7 @@ class FeatureSelector():
         
     def get_selected_features(self):
         """
-        To be implemented
+        To be implemented by each method
         Returns:
             selected: The list of selected features as column names in the original dataframe
         """
@@ -94,10 +99,40 @@ class FeatureSelector():
         self.selected=list(selected)
         return self.selected
         
+    def _complete_config_from_parameters(hyperparameters):
+        """
+        Static method transforming a flat hyperparameter dictionary into a valid configuration for a class object.
+        Params:
+            hyperparameters: dictionary, containing the hyperparameters
+        Returns:
+            config: dictionary, containing a valid configuration
+        """
+        pass
+    
+    def _generate_optuna_parameters(trial):
+        """
+        Static method sampling hyperparametrers from an optuna trial.
+        Params:
+            trial: optuna.trial.Trial, the trial object with which to sample the parameters
+        Returns:
+            hp: the hyperparameter dictionary indexed by parameter name, containing each associated sampled value.
+        """
+        pass
         
-        
-        
-        
+    def _generate_optuna_search_space():
+        """
+        Static method defining the search space for an optuna GridSampler optimizer.
+        Returns:
+            hp: the grid space dictionary indexed by parameter name, containing for each parameter a list of values to try.
+        """        
+        pass
+     
+     
+##################################################################
+#                                                                #
+#                   Our proposed algorithm                       #
+#                                                                #
+##################################################################  
         
 
 class ChronOMP(FeatureSelector):
@@ -128,8 +163,87 @@ class ChronOMP(FeatureSelector):
     
     def get_selected_features(self):
         return self.instance.get_selected_features()
+    
+    def _complete_config_from_parameters(hyperparameters):
+        config = {"model": hyperparameters.get("model", "ARDL"),
+                  "model_config": 
+                     { "constructor" : {"lags":hyperparameters.get("lags", 10),
+                                        "order":hyperparameters.get("order", hyperparameters.get("lags", 10)),
+                                        "causal":True,
+                                        "trend":hyperparameters.get("trend", "ct"),
+                                        "seasonal":hyperparameters.get("seasonal", False),
+                                        "period":hyperparameters.get("period", None),
+                                        "missing":"drop"},
+                       "fit" : {"cov_type":hyperparameters.get("cov_type", "HC0"),
+                                "cov_kwds":hyperparameters.get("cov_kwds", None)}
+                     },
+                 "association": hyperparameters.get("association", "Pearson"),
+                 "association_config":{
+                       "return_type": hyperparameters.get("return_type", "p-value"),
+                       "lags": hyperparameters.get("lags", 10),
+                       "selection_rule": hyperparameters.get("selection_rule", "max"),
+                     },
+                 "config":
+                     { "significance_threshold": hyperparameters.get("significance_threshold", 0.05),
+                       "method": hyperparameters.get("method", "f-test"),
+                       "max_features": hyperparameters.get("max_features", 5),
+                       "valid_obs_param_ratio": hyperparameters.get("valid_obs_param_ratio", 10),
+                       "choose_oracle": False
+                     }
+                 }
+        return config
+    
+    def _generate_optuna_parameters(trial):
+        hp = dict()
+        hp["model"] = "ARDL"
+        hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
+        hp["order"] = hp["lags"]
+        hp["trend"] = trial.suggest_categorical("trend",["n","t","c", "ct"])
+        hp["association"] = trial.suggest_categorical("association",["Pearson","Spearman"])
+        hp["significance_threshold"] = trial.suggest_float("significance_threshold", 0.00001, 0.1, log=True)
+        hp["method"] = trial.suggest_categorical("method",["f-test", "wald-test", "lr-test"])
+        hp["max_features"] = trial.suggest_int("max_features", 5, 50, log=True)
+        hp["valid_obs_param_ratio"] = trial.suggest_categorical("valid_obs_param_ratio",[1., 5., 10.])
+        return hp
+        
+    def _generate_optuna_search_space():
+        hp = dict()
+        hp["model"] = ["ARDL"]
+        hp["lags"] = [5,10,15]
+        hp["trend"] = ["n","ct"]
+        hp["association"] = ["Pearson","Spearman"]
+        hp["significance_threshold"] = [0.00001, 0.00005]
+        hp["method"] = ["f-test"]
+        hp["max_features"] = [50]
+        hp["valid_obs_param_ratio"] = [1.]
+        return hp
+
+class BackwardChronOMP(ChronOMP):
+    def fit(self, data):
+        self.instance.fit_backward(data)
+    def _complete_config_from_parameters(hyperparameters):
+        config = ChronOMP._complete_config_from_parameters(hyperparameters)
+        config["config"]["significance_threshold_backward"] = hyperparameters.get("significance_threshold_backward", 0.05)
+        config["config"]["method_backward"] = hyperparameters.get("method_backward", hyperparameters.get("method","f-test"))
+        return config
+    def _generate_optuna_parameters(trial):
+        hp = ChronOMP._generate_optuna_parameters(trial)
+        hp["significance_threshold_backward"] = trial.suggest_float("significance_threshold", 0.00001, 0.1, log=True)
+        hp["method_backward"] = trial.suggest_categorical("method",["f-test", "wald-test", "lr-test"])
+        return hp
+    def _generate_optuna_search_space():
+        hp = ChronOMP._generate_optuna_search_space()
+        hp["significance_threshold"] = [0.00001, 0.0001, 0.001]
+        hp["significance_threshold_backward"] = [0.00001, 0.0001, 0.001, 0.01]
+        hp["method_backward"] = ["wald-test"]
+        return hp
         
         
+##################################################################
+#                                                                #
+#                       Lasso with LARS                          #
+#                                                                #
+##################################################################   
 
 
 class VectorLassoLars(FeatureSelector):
@@ -147,9 +261,6 @@ class VectorLassoLars(FeatureSelector):
     
     def _model_init(self):
         self.model = LassoLars(**self.config["model_config"])
-        
-    
-    
     
     def fit(self, data):
         X, y, _ = self.prepare_data_vectorize(data, self.config["lags"])
@@ -176,7 +287,39 @@ class VectorLassoLars(FeatureSelector):
     def get_selected_features(self):
         return self.selected
 
+    def _complete_config_from_parameters(hyperparameters):
+        config = {"lags": hyperparameters.get("lags", 10),
+                  "max_features": hyperparameters.get("max_features",10),
+                  "threshold": hyperparameters.get("threshold",0.0001),
+                  "model_config": {"alpha":hyperparameters.get("alpha", 1.),
+                                   "fit_intercept":True,
+                                   "fit_path":False}
+                  }
+        return config
+    def _generate_optuna_parameters(trial):
+        hp = dict()
+        hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
+        hp["max_features"] = trial.suggest_int("max_features", 5, 50, log=True)
+        hp["threshold"] = trial.suggest_float("threshold", 0.000001, 0.01, log=True)
+        hp["alpha"] = trial.suggest_float("alpha", 0.001, 10., log=True)
+        return hp
 
+    def _generate_optuna_search_space():
+        hp = dict()
+        hp["lags"] = [5,10,15]
+        hp["max_features"] = [50]
+        hp["threshold"] = [0.000001, 0.00001,  0.0001,  0.001, 0.01]
+        hp["alpha"] = [0.001, 0.01, 0.1, 1.,  10.]
+        return hp
+
+
+
+
+##################################################################
+#                                                                #
+#               Recursive Feature Elimination                    #
+#                                                                #
+##################################################################
 
 
 
@@ -210,6 +353,46 @@ class ModifiedRFE(FeatureSelector):
     
     def get_selected_features(self):
         return self.selected
+    
+    def _complete_config_from_parameters(hyperparameters):
+        default_model_config = {"kernel":hyperparameters.get("kernel", "rbf"),
+                              "degree":hyperparameters.get("degree", 3),
+                              "gamma":hyperparameters.get("gamma", "scale"),
+                              "coef0":hyperparameters.get("coef0", 0.),
+                              "tol":hyperparameters.get("tol", 0.001),
+                              "C":hyperparameters.get("C", 1.0),
+                              "epsilon":hyperparameters.get("epsilon", 0.1),
+                              "shrinking":True}
+                               
+        config = {"model": hyperparameters.get("model", "SVR"),
+                  "model_config": hyperparameters.get("model_config", default_model_config),
+                  "lags": hyperparameters.get("lags", 10),
+                  "n_features_to_select": hyperparameters.get("n_features_to_select", 10),
+                  "step": hyperparameters.get("step", 10)
+                 }
+        return config
+    
+    def _generate_optuna_parameters(trial):
+        hp["model"] = "SVR"
+        hp["n_features_to_select"] = trial.suggest_int("n_features_to_select", 5, 50, log=True)
+        hp["step"] = trial.suggest_int("step", 4, 10, log=False)
+        hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
+        hp["kernel"] = trial.suggest_categorical("kernel",["linear","rbf","poly", "sigmoid"])
+        hp["degree"] = trial.suggest_int("degree",2,5,1,log=False)
+        hp["coef0"] = trial.suggest_float("coef0", 0.01, 2., log=True)
+        hp["C"] = trial.suggest_float("C", 0.05, 20.,log=True)
+        return hp
+    
+    def _generate_optuna_search_space():
+        hp["lags"] = [5,10,15]
+        hp["model"] = ["SVR"]
+        hp["n_features_to_select"] = [1,2,3,4,5,6,7,8,10,15,20,30,40,50]
+        hp["step"] = [2, 4, 6, 8, 10]
+        hp["kernel"] = ["linear","rbf"]
+        hp["degree"] = [2]
+        hp["coef0"] = [0.01]
+        hp["C"] = [0.01, 0.1, 1., 10.]
+        return hp
 
 class RFE(ModifiedRFE):
     """
@@ -232,6 +415,14 @@ class RFE(ModifiedRFE):
                     selected.append((data.columns[i],self.lags-j))
         self.selected=selected
         return selected
+
+
+
+##################################################################
+#                                                                #
+#           Bivariate Granger pairwise test                      #
+#                                                                #
+##################################################################
 
 
 class BivariateGranger(FeatureSelector):
@@ -263,7 +454,90 @@ class BivariateGranger(FeatureSelector):
     def get_selected_features(self):
         return self.selected    
 
+    def _complete_config_from_parameters(hyperparameters):
+        config = {"maxlags": hyperparameters.get("maxlags", 10),
+                  "alpha_level": hyperparameters.get("alpha_level", 0.05)}  
+        return config
+        
+    def _generate_optuna_parameters(trial):
+        hp = dict()    
+        hp["maxlags"] = trial.suggest_int("maxlags",5,20,1,log=False)
+        hp["alpha_level"] = trial.suggest_float("alpha_level",0.0001,  0.1, log=True)
+        return hp
+    
+    def _generate_optuna_search_space():
+        hp = dict()
+        hp["maxlags"] = [5,10,15]
+        hp["alpha_level"] = [0.001, 0.01, 0.05,  0.1]
+        return hp
 
+
+
+
+##################################################################
+#                                                                #
+#                       SyPI                                     #
+#                                                                #
+##################################################################
+
+
+
+class SyPI(FeatureSelector):
+    def __init__(self, config, target):
+        super().__init__(config, target)
+        self.p_cond1 = config["p_cond1"]
+        self.p_cond2 = config["p_cond2"]
+        self.threshold_lasso = config["threshold_lasso"]
+        self.lags = config["lags"]
+    
+    
+    def fit(self, data):
+        # by default in SyPI, the target variable is the last one. We need to reorder the dataframe.
+        columns = [name for name in data.columns if name!=self.target]
+        columns = columns + [self.target]
+        # also, the type of data expected by the function is an np.array, with covariates in rows and timesteps in columns.
+        X = data[columns].values.T
+        
+        predicted_causes_indices = SyPI_method("scipy_lassoalgo",  # regression algorithm: only this choice implemented
+                    "linear",  # partial correlation algorithm: only this choice implemented
+                    False,  # do not normalize the data since this was done already as preprocessing
+                    None,  # no lambda parameter in the lasso used, instead chosen with AIC
+                    self.lags,
+                    self.p_cond1, 
+                    self.p_cond2, 
+                    self.threshold_lasso,
+                    None, None, None,  # no ground truth provided here
+                    X)
+        selected_column_names = list(np.array(columns)[predicted_causes_indices])
+        self.selected = selected_column_names
+        return self.selected
+    
+    def get_selected_features(self):
+        return self.selected
+        
+    def _complete_config_from_parameters(hyperparameters):
+        config = {"lags": hyperparameters.get("lags", 10),
+                  "p_cond1": hyperparameters.get("p_cond1",0.001),
+                  "p_cond2": hyperparameters.get("p_cond2",hyperparameters.get("p_cond1",0.001)),
+                  "threshold_lasso": hyperparameters.get("threshold_lasso",0.001)}
+        return config
+        
+    def _generate_optuna_parameters(trial):
+        hp = dict()
+        hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
+        hp["threshold_lasso"] = trial.suggest_float("threshold_lasso",0.00001, 0.1, log=True)
+        hp["p_cond1"] = trial.suggest_float("p_cond1",0.001,  0.1, log=True)
+        hp["p_cond2"] = trial.suggest_float("p_cond2",0.001,  0.1, log=True)
+        return hp
+    
+    def _generate_optuna_search_space():
+        hp = dict()
+        hp["lags"] = [5,10,15]
+        hp["threshold_lasso"] = [0.000001, 0.00001,  0.0001,  0.001, 0.01]
+        hp["p_cond1"] = [0.001, 0.01, 0.05, 0.1]
+        hp["p_cond2"] = [0.001, 0.01, 0.05, 0.1]
+        return hp
+        
 ##################################################################
 #                                                                #
 #   Create configs for completion and optuna                     #
@@ -272,122 +546,51 @@ class BivariateGranger(FeatureSelector):
 
 def complete_config_from_parameters(name, hyperparameters):
     if name == "ChronOMP":
-        config = {"model": hyperparameters.get("model", "ARDL"),
-                  "model_config": 
-                     { "constructor" : {"lags":hyperparameters.get("lags", 10),
-                                        "order":hyperparameters.get("order", hyperparameters.get("lags", 10)),
-                                        "causal":True,
-                                        "trend":hyperparameters.get("trend", "ct"),
-                                        "seasonal":hyperparameters.get("seasonal", False),
-                                        "period":hyperparameters.get("period", None),
-                                        "missing":"drop"},
-                       "fit" : {"cov_type":hyperparameters.get("cov_type", "HC0"),
-                                "cov_kwds":hyperparameters.get("cov_kwds", None)}
-                     },
-                 "association": hyperparameters.get("association", "Pearson"),
-                 "association_config":{
-                       "return_type": hyperparameters.get("return_type", "p-value"),
-                       "lags": hyperparameters.get("lags", 10),
-                       "selection_rule": hyperparameters.get("selection_rule", "max"),
-                     },
-                 "config":
-                     { "significance_threshold": hyperparameters.get("significance_threshold", 0.05),
-                       "method": hyperparameters.get("method", "f-test"),
-                       "max_features": hyperparameters.get("max_features", 5),
-                       "valid_obs_param_ratio": hyperparameters.get("valid_obs_param_ratio", 10),
-                       "choose_oracle": False
-                     }
-                 }
+        config = ChronOMP._complete_config_from_parameters(hyperparameters)
+    elif name == "BackwardChronOMP":
+        config = BackwardChronOMP._complete_config_from_parameters(hyperparameters)
     elif name == "ModifiedRFE" or name == "RFE":
-        default_model_config = {"kernel":hyperparameters.get("kernel", "rbf"),
-                              "degree":hyperparameters.get("degree", 3),
-                              "gamma":hyperparameters.get("gamma", "scale"),
-                              "coef0":hyperparameters.get("coef0", 0.),
-                              "tol":hyperparameters.get("tol", 0.001),
-                              "C":hyperparameters.get("C", 1.0),
-                              "epsilon":hyperparameters.get("epsilon", 0.1),
-                              "shrinking":True}
-                               
-        config = {"model": hyperparameters.get("model", "SVR"),
-                  "model_config": hyperparameters.get("model_config", default_model_config),
-                  "lags": hyperparameters.get("lags", 10),
-                  "n_features_to_select": hyperparameters.get("n_features_to_select", 10),
-                  "step": hyperparameters.get("step", 10)
-                 }
+        config = ModifiedRFE._complete_config_from_parameters(hyperparameters)
     elif name == "BivariateGranger":
-        config = {"maxlags": hyperparameters.get("maxlags", 10),
-                  "alpha_level": hyperparameters.get("alpha_level", 0.05)}  
+        config = BivariateGranger._complete_config_from_parameters(hyperparameters)
     elif name == "VectorLassoLars":
-        config = {"lags": hyperparameters.get("lags", 10),
-                  "max_features": hyperparameters.get("max_features",10),
-                  "threshold": hyperparameters.get("threshold",10),
-                  "model_config": {"alpha":hyperparameters.get("alpha", 1.),
-                                   "fit_intercept":True,
-                                   "fit_path":False}
-                  }
+        config = VectorLassoLars._complete_config_from_parameters(hyperparameters)
+    elif name == "SyPI":
+        config = SyPI._complete_config_from_parameters(hyperparameters)
     return config
     
     
 def generate_optuna_parameters(name, trial):
     hp = dict()
     if name == "ChronOMP":
-        hp["model"] = "ARDL"
-        hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
-        hp["order"] = hp["lags"]
-        hp["trend"] = trial.suggest_categorical("trend",["n","t","c", "ct"])
-        hp["association"] = trial.suggest_categorical("association",["Pearson","Spearman"])
-        hp["significance_threshold"] = trial.suggest_categorical("significance_threshold",[0.001, 0.005, 0.01, 0.05, 0.1])
-        hp["method"] = trial.suggest_categorical("method",["f-test", "wald-test", "lr-test"])
-        hp["max_features"] = trial.suggest_int("max_features", 5, 50, log=True)
-        hp["valid_obs_param_ratio"] = trial.suggest_categorical("valid_obs_param_ratio",[1., 5., 10.])
+        hp = ChronOMP._generate_optuna_parameters(trial)
+    elif name == "BackwardChronOMP":
+        hp = BackwardChronOMP._generate_optuna_parameters(trial)
     elif name == "ModifiedRFE" or name == "RFE":
-        hp["model"] = "SVR"
-        hp["n_features_to_select"] = trial.suggest_int("n_features_to_select", 5, 50, log=True)
-        hp["step"] = trial.suggest_int("step", 4, 10, log=False)
-        hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
-        hp["kernel"] = trial.suggest_categorical("kernel",["linear","rbf","poly", "sigmoid"])
-        hp["degree"] = trial.suggest_int("degree",2,5,1,log=False)
-        hp["coef0"] = trial.suggest_float("coef0", 0.01, 2., log=True)
-        hp["C"] = trial.suggest_float("C", 0.05, 20.,log=True)
+        hp = ModifiedRFE._generate_optuna_parameters(trial)
     elif name == "BivariateGranger":
-        hp["maxlags"] = trial.suggest_int("maxlags",5,20,1,log=False)
-        hp["alpha_level"] = trial.suggest_float("alpha_level",0.0001,  0.1, log=True)
+        hp = BivariateGranger._generate_optuna_parameters(trial)
     elif name == "VectorLassoLars":
-        hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
-        hp["max_features"] = trial.suggest_int("max_features", 5, 50, log=True)
-        hp["threshold"] = trial.suggest_float("threshold", 0.000001, 0.01, log=True)
-        hp["alpha"] = trial.suggest_float("alpha", 0.001, 10., log=True)
+        hp = VectorLassoLars._generate_optuna_parameters(trial)
+    elif name == "SyPI":
+        hp = SyPI._generate_optuna_parameters(trial)
     return hp
 
     
 def generate_optuna_search_space(name):
     hp = dict()
     if name == "ChronOMP":
-        hp["model"] = ["ARDL"]
-        hp["lags"] = [5,10,15,20]
-        hp["trend"] = ["n","t","c", "ct"]
-        hp["association"] = ["Pearson","Spearman"]
-        hp["significance_threshold"] = [0.001, 0.01, 0.05, 0.1]
-        hp["method"] = ["f-test"]
-        hp["max_features"] = [50]
-        hp["valid_obs_param_ratio"] = [1., 5., 10.]
+        hp = ChronOMP._generate_optuna_search_space()
+    elif name == "BackwardChronOMP":
+        hp = BackwardChronOMP._generate_optuna_search_space()
     elif name == "ModifiedRFE" or name == "RFE":
-        hp["lags"] = [5,10,15,20]
-        hp["model"] = ["SVR"]
-        hp["n_features_to_select"] = [1,2,3,4,5,6,7,8,10,15,20,30,40,50]
-        hp["step"] = [2, 4, 6, 8, 10]
-        hp["kernel"] = ["linear","rbf","poly", "sigmoid"]
-        hp["degree"] = [2,3,4,5]
-        hp["coef0"] = [0.01, 0.05, 0.01, 0.5, 0.1, 0.5, 1., 2.]
-        hp["C"] = [0.05, 0.1, 0.2, 0.5, 1., 2., 5., 10., 20.]
+        hp = ModifiedRFE._generate_optuna_search_space()
     elif name == "BivariateGranger":
-        hp["maxlags"] = [5,10,15,20]
-        hp["alpha_level"] = [0.001, 0.01, 0.05,  0.1]
+        hp = BivariateGranger._generate_optuna_search_space()
     elif name == "VectorLassoLars":
-        hp["lags"] = [5,10,15,20]
-        hp["max_features"] = [50]
-        hp["threshold"] = [0.000001, 0.00001,  0.0001,  0.001, 0.01]
-        hp["alpha"] = [0.001, 0.01, 0.1, 1.,  10., 100.]
+        hp = VectorLassoLars._generate_optuna_search_space()
+    elif name == "SyPI":
+        hp = SyPI._generate_optuna_search_space()
     return hp
 
 

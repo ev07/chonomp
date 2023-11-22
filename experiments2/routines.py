@@ -11,7 +11,7 @@ rootdir = '../'
 sys.path.append(rootdir)
 
 from baselines.estimators import Estimator, ARDLModel, SVRModel, KNeighborsRegressorModel
-from baselines.feature_selection import ChronOMP, BivariateGranger, ModifiedRFE, VectorLassoLars
+from baselines.feature_selection import ChronOMP, BivariateGranger, ModifiedRFE, VectorLassoLars, BackwardChronOMP
 
 from data_opener import open_dataset_and_ground_truth
 
@@ -36,6 +36,7 @@ def get_FS(config_file):
     config = fs_info["CONFIG"]
     
     algo = {"ChronOMP":ChronOMP,
+            "BackwardChronOMP":BackwardChronOMP,
             "BivariateGranger":BivariateGranger,
             "VectorLassoLars":VectorLassoLars,
             "ModifiedRFE":ModifiedRFE}[fs_info["NAME"]]
@@ -176,7 +177,19 @@ def get_folds_from_data(data, config_file):
     
     
 
-def compute_stats_selected(totalcolumns, selected, causes, lagged_causes, selection_mode):
+def compute_stats_selected(totalcolumns, selected, causes, lagged_causes, selection_mode="variable"):
+    """
+    Compute metrics about the selected set versus the ground truth set.
+    Params:
+        totalcolumns: int, total number of columns in the dataset
+        selected: list of str if selection_mode is "variable", the list of selected columns by the feature selection algorithm 
+                  list of (str, int) if selection mode is "variable, lag", the list of selected features by the FS algorithm
+        causes: list of str, the list of ground truth relevant columns (without lag information)
+        lagged_causes: list of str, the list of ground truth lagged causes. This argument is ignored if selection_mode is "variable".
+        selection_mode (optional): str, "variable, lag" if the selected set contains lagged information, "variable" otherwise.
+    Returns:
+        row: dict, contains the different metrics indexed by name, and the associated value.
+    """
     row = {"FS_size":len(selected)}
     if causes is not None:  # if none, the data has no ground truth graph. So no stats to compute.
         if selection_mode == "variable":
@@ -197,7 +210,8 @@ def compute_stats_selected(totalcolumns, selected, causes, lagged_causes, select
                "TP": len(sTP), 
                "FP": len(sPred) - len(sTP),
                "FN": len(sTrue) - len(sTP), 
-               "TN": totalcolumns + len(sTP) - len(sPred) - len(sTrue)}
+               "TN": totalcolumns + len(sTP) - len(sPred) - len(sTrue),
+               "f1-score": 2*precision*recall/(precision+recall)}
     return row
     
 

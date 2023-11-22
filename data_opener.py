@@ -44,7 +44,8 @@ def open_dataset_and_ground_truth(dataset_name: str,
                                   cause_extraction="parents",
                                   rootdir=".",
                                   compute_window_causal_graph=False,
-                                  window_size="max_direct"):
+                                  window_size="max_direct",
+                                  skip_causal_step=False):
     """
     Open a file in a dataset family, where the ground truth is known:
     Params:
@@ -55,6 +56,7 @@ def open_dataset_and_ground_truth(dataset_name: str,
      - rootdir (optional): string indicating the root repository
      - computed_window_causal_graph (optional): bool set to True to compute window causal graph
      - window_size (optional): lag selection strategy for the window causal graph. Default is "max_direct" which takes the maximal lag of a cause.
+     - skip_causal_step (optional): avoid computing causes_attributes_dict and lagged_causes_attributes_dict, return None, None instead.
     Returns:
      - df: the dataframe containing the MTS
      - var_names: the list of attribute names that can be forecasting target
@@ -264,6 +266,9 @@ def open_dataset_and_ground_truth(dataset_name: str,
     #   Creating the causal graphs
     #
     ################
+   
+    if skip_causal_step:
+        return df, var_names, None, None
 
     node_names = dict()
     for var in var_names:
