@@ -211,7 +211,7 @@ class ChronOMP(FeatureSelector):
         hp["model"] = ["ARDL"]
         hp["lags"] = [5,10,15]
         hp["trend"] = ["n","ct"]
-        hp["association"] = ["Pearson","Spearman"]
+        hp["association"] = ["Pearson"]#,"Spearman"]
         hp["significance_threshold"] = [0.00001, 0.0001, 0.001, 0.01, 0.05]
         hp["method"] = ["f-test", "lr-test"]
         hp["max_features"] = [50]
@@ -233,7 +233,8 @@ class BackwardChronOMP(ChronOMP):
         return hp
     def _generate_optuna_search_space():
         hp = ChronOMP._generate_optuna_search_space()
-        hp["significance_threshold"] = [0.00001, 0.0001, 0.001]
+        hp["method"] = ["f-test"]
+        hp["significance_threshold"] = [0.00001, 0.0001]
         hp["significance_threshold_backward"] = [0.00001, 0.0001, 0.001, 0.01]
         hp["method_backward"] = ["wald-test"]
         return hp
