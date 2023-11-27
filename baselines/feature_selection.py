@@ -11,7 +11,7 @@ from sklearn.feature_selection import SelectFromModel
           
 from statsmodels.tsa.vector_ar.var_model import VAR
 
-from baselines.SyPI import SyPI_method
+#from baselines.SyPI import SyPI_method
 
 #  Error class for the SelectFromModel instance, where giving a maximal number of selected variables above the size of the data is impossible.
 
@@ -211,7 +211,7 @@ class ChronOMP(FeatureSelector):
         hp["model"] = ["ARDL"]
         hp["lags"] = [5,10,15]
         hp["trend"] = ["n","ct"]
-        hp["association"] = ["Pearson","Spearman"]
+        hp["association"] = ["Pearson"]
         hp["significance_threshold"] = [0.00001, 0.0001, 0.001, 0.01, 0.05]
         hp["method"] = ["f-test", "lr-test"]
         hp["max_features"] = [50]
