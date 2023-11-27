@@ -211,7 +211,7 @@ def compute_stats_selected(totalcolumns, selected, causes, lagged_causes, select
                "FP": len(sPred) - len(sTP),
                "FN": len(sTrue) - len(sTP), 
                "TN": totalcolumns + len(sTP) - len(sPred) - len(sTrue),
-               "f1-score": 2*precision*recall/(precision+recall)}
+               "f1-score": 2*precision*recall/(precision+recall) if precision+recall>0 else np.nan}
     return row
     
 

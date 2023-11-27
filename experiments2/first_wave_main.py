@@ -57,6 +57,13 @@ def setup_dataset(dataset_name, filename, target):
             "TARGET_CHOICE": "sampling",
             "MAXIMUM_NUMBER_TARGETS": 10}
             }
+    elif dataset_name == "VAR10000_redundant":
+        config = {"DATASET":{
+            "PATH": "VARLarge/redundant/returns",
+            "CAUSES": "parents",
+            "TARGET_CHOICE": "sampling",
+            "MAXIMUM_NUMBER_TARGETS": 10}
+            }
     elif dataset_name == "7ts2h":
         config = {"DATASET":{
             "PATH": "SynthNonlin/7ts2h",

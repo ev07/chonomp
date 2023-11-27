@@ -90,6 +90,9 @@ def open_dataset_and_ground_truth(dataset_name: str,
     elif dataset_name=="VARLarge/returns":
         df = pd.read_csv(rootdir + "/data/" + dataset_name + "/" + filename)
         df.columns = [str(i) for i in df.columns]
+    elif dataset_name=="VARLarge/redundant/returns":
+        df = pd.read_csv(rootdir + "/data/" + dataset_name + "/" + filename)
+        df.columns = [str(i) for i in df.columns]
     elif dataset_name=="VARSmall/returns":
         df = pd.read_csv(rootdir + "/data/" + dataset_name + "/" + filename)
         df.columns = [str(i) for i in df.columns]
@@ -193,7 +196,15 @@ def open_dataset_and_ground_truth(dataset_name: str,
         ground_truth_lags = 5
         for cause, effect, lag in df_truth.values:
             ground_truth_parents[str(effect)].append((str(cause), lag))
-    
+            
+    elif dataset_name=="VARLarge/redundant/returns":
+        g_truth_name = "VARLarge/redundant/ground_truths/"+filename
+        df_truth = pd.read_csv(rootdir + "data/" + g_truth_name, header=None, sep=",")
+        ground_truth_parents = defaultdict(list)
+        ground_truth_lags = 5
+        for cause, effect, lag in df_truth.values:
+            ground_truth_parents[str(effect)].append((str(cause), lag))
+            
     elif dataset_name=="VARSmall/returns":
         g_truth_name = "VARSmall/ground_truths/"+filename
         df_truth = pd.read_csv(rootdir + "data/" + g_truth_name, header=None, sep=",")
@@ -260,13 +271,18 @@ def open_dataset_and_ground_truth(dataset_name: str,
             
     else:
         raise Exception("Dataset specified in argument is not implemented")
-
+    
+    # define targets when restricted
+    possible_targets = var_names
+    if dataset_name=="VARLarge/redundant/returns":
+        possible_targets = possible_targets[:100]
+    
     ################
     #
     #   Creating the causal graphs
     #
     ################
-   
+    
     if skip_causal_step:
         return df, var_names, None, None
 
