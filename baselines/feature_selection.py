@@ -307,7 +307,7 @@ class VectorLassoLars(FeatureSelector):
 
     def _generate_optuna_search_space():
         hp = dict()
-        hp["lags"] = [5,10,15]
+        hp["lags"] = [10]
         hp["max_features"] = [50]
         hp["threshold"] = [0.000001, 0.00001,  0.0001,  0.001, 0.01]
         hp["alpha"] = [0.001, 0.01, 0.1, 1.,  10.]
