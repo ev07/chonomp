@@ -622,6 +622,8 @@ def complete_config_from_parameters(name, hyperparameters):
         config = ChronOMP._complete_config_from_parameters(hyperparameters)
     elif name == "BackwardChronOMP":
         config = BackwardChronOMP._complete_config_from_parameters(hyperparameters)
+    elif name == "TrainTestChronOMP":
+        config = TrainTestChronOMP._complete_config_from_parameters(hyperparameters)
     elif name == "ModifiedRFE" or name == "RFE":
         config = ModifiedRFE._complete_config_from_parameters(hyperparameters)
     elif name == "BivariateGranger":
@@ -639,6 +641,8 @@ def generate_optuna_parameters(name, trial):
         hp = ChronOMP._generate_optuna_parameters(trial)
     elif name == "BackwardChronOMP":
         hp = BackwardChronOMP._generate_optuna_parameters(trial)
+    elif name == "TrainTestChronOMP":
+        hp = TrainTestChronOMP._generate_optuna_parameters(trial)
     elif name == "ModifiedRFE" or name == "RFE":
         hp = ModifiedRFE._generate_optuna_parameters(trial)
     elif name == "BivariateGranger":
@@ -656,6 +660,8 @@ def generate_optuna_search_space(name):
         hp = ChronOMP._generate_optuna_search_space()
     elif name == "BackwardChronOMP":
         hp = BackwardChronOMP._generate_optuna_search_space()
+    elif name == "TrainTestChronOMP":
+        hp = TrainTestChronOMP._generate_optuna_search_space()
     elif name == "ModifiedRFE" or name == "RFE":
         hp = ModifiedRFE._generate_optuna_search_space()
     elif name == "BivariateGranger":
