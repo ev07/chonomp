@@ -2,7 +2,7 @@ import numpy as np
 
 from tsGOMP import tsGOMP_OneAssociation
 from associations import PearsonMultivariate, SpearmanMultivariate
-from models import ARDLModel
+from models import ARDLModel, SVRModel
 
 from sklearn.feature_selection import RFE
 from sklearn.svm import SVR
@@ -209,7 +209,7 @@ class ChronOMP(FeatureSelector):
     def _generate_optuna_search_space():
         hp = dict()
         hp["model"] = ["ARDL"]
-        hp["lags"] = [5,10,15]
+        hp["lags"] = [20]
         hp["trend"] = ["n","ct"]
         hp["association"] = ["Pearson"]#,"Spearman"]
         hp["significance_threshold"] = [0.00001, 0.0001, 0.001, 0.01, 0.05]
@@ -239,7 +239,79 @@ class BackwardChronOMP(ChronOMP):
         hp["method_backward"] = ["wald-test"]
         return hp
         
+class TrainTestChronOMP(ChronOMP):
+    
+    def _config_init(self):
+        association_constructor = {"Pearson":PearsonMultivariate, "Spearman": SpearmanMultivariate}[self.config["association"]]
+        association_config = self.config["association_config"]
         
+        model_constructor = {"SVR":SVRModel}[self.config["model"]]
+        model_config = self.config["model_config"]
+        
+        config = self.config["config"]
+        config = {**config, "association": association_constructor,
+                  "association.config": association_config,
+                  "model": model_constructor,
+                  "model.config": model_config}
+        return config
+
+    def _complete_config_from_parameters(hyperparameters):
+        config = {"model": hyperparameters.get("model", "SVR"),
+                  "model_config": 
+                     {"lags": hyperparameters.get("lags", 10),
+                      "skconfig":{"kernel":hyperparameters.get("kernel", "rbf"),
+                              "degree":hyperparameters.get("degree", 3),
+                              "gamma":hyperparameters.get("gamma", "scale"),
+                              "coef0":hyperparameters.get("coef0", 0.),
+                              "tol":hyperparameters.get("tol", 0.001),
+                              "C":hyperparameters.get("C", 1.0),
+                              "epsilon":hyperparameters.get("epsilon", 0.1),
+                              "shrinking":True}
+                     },
+                 "association": hyperparameters.get("association", "Pearson"),
+                 "association_config":{
+                       "return_type": hyperparameters.get("return_type", "p-value"),
+                       "lags": hyperparameters.get("lags", 10),
+                       "selection_rule": hyperparameters.get("selection_rule", "max"),
+                     },
+                 "config":
+                     { "significance_threshold": hyperparameters.get("significance_threshold", 0.0),
+                       "method": hyperparameters.get("method", "rmse_diff"),
+                       "max_features": hyperparameters.get("max_features", 5),
+                       "valid_obs_param_ratio": hyperparameters.get("valid_obs_param_ratio", 10),
+                       "choose_oracle": False
+                     }
+                 }
+        return config
+    
+    def _generate_optuna_parameters(trial):
+        hp = dict()
+        hp["model"] = "SVR"
+        hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
+        hp["kernel"] = trial.suggest_categorical("kernel",["linear","rbf","poly", "sigmoid"])
+        hp["coef0"] = trial.suggest_float("coef0", 0.0, 2.)
+        hp["C"] = trial.suggest_float("C", 0.05, 20., log=True)
+        hp["association"] = trial.suggest_categorical("association",["Pearson","Spearman"])
+        hp["significance_threshold"] = trial.suggest_float("significance_threshold", -0.05, 0., log=False)
+        hp["method"] = trial.suggest_categorical("method",["rmse_diff"])
+        hp["max_features"] = trial.suggest_int("max_features", 5, 50, log=True)
+        hp["valid_obs_param_ratio"] = trial.suggest_categorical("valid_obs_param_ratio",[1., 5., 10.])
+        return hp
+        
+    def _generate_optuna_search_space():
+        hp = dict()
+        hp["model"] = ["SVR"]
+        hp["lags"] = [20]
+        hp["kernel"] = ["rbf", "sigmoid"]
+        hp["coef0"] = [0.0]
+        hp["C"] = [ 0.1, 1., 10.]
+        hp["association"] = ["Pearson","Spearman"]
+        hp["significance_threshold"] = [-0.05, -0.01, 0.0]
+        hp["method"] = ["rmse_diff"]
+        hp["max_features"] = [50]
+        hp["valid_obs_param_ratio"] = [1.]
+        return hp
+
 ##################################################################
 #                                                                #
 #                       Lasso with LARS                          #
@@ -307,7 +379,7 @@ class VectorLassoLars(FeatureSelector):
 
     def _generate_optuna_search_space():
         hp = dict()
-        hp["lags"] = [10]
+        hp["lags"] = [20]
         hp["max_features"] = [50]
         hp["threshold"] = [0.000001, 0.00001,  0.0001,  0.001, 0.01]
         hp["alpha"] = [0.001, 0.01, 0.1, 1.,  10.]

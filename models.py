@@ -19,6 +19,7 @@ import pydash
 #from torch import device
 #import torch.cuda
 
+import baselines.estimators
 
 
 # custom error for ARDL model
@@ -73,6 +74,16 @@ class LearningModel:
     #
     
     def residuals(self, data=None):
+        """
+        Compute residuals.
+        Uses training data if "data" argument is None, otherwise specified data is used.
+        
+        Params:
+            data (optional): None or pd.DataFrame, where data.columns should be identical to self.data.columns
+        Returns:
+            pd.dataframe with a single column corresponding to the target. The index of this dataframe coincidates
+            with the index of the "data" dataframe, over the forecasted points.
+        """
         # output should be a pd.DataFrame, rows index should correspond to the original data
         # the series should not contain NaN timestamps.
         if data is None:
@@ -96,6 +107,10 @@ class LearningModel:
         """
         Compute the Total Variation of the target series, for all timestamps for which residuals are computed.
         Total Variation = len(series) * series.std()**2
+        Uses training data if "data" argument is None, otherwise specified data is used.
+        
+        Params:
+            data (optional): None or pd.DataFrame, where data.columns should be identical to self.data.columns
         """
         indexes = self.residuals(data).index  # only take timestamps over which residuals exist
         if data is None:
@@ -281,7 +296,7 @@ class ARDLModel(LearningModel):
 
     def __init__(self, config, target):
         super().__init__(config, target)
-        self.results = None  # to store the VARResults instance
+        self.results = None  # to store the ARDLResults instance
 
     def fit(self, data):
         """Make sure that number of parameters are enough compared to the data size
@@ -836,4 +851,64 @@ class LSTMModelTrainVal(LSTMModel):
         statistics["training_loss"] = self._loss_training
         statistics["metrics_during_train"] = self._metrics_training
         return statistics
+
+
+#########################
+#
+#
+#
+#########################
+
+class SVRModel(LearningModel):
+    def __init__(self, config, target):
+        super().__init__(config, target)
+        self.test_fittedvalues = None
+
+    def fit(self, data):
+        self.model = baselines.estimators.SVRModel(config, self.target)
+        self.model.fit(data, None)
+
+    def fittedvalues(self, data=None, test=True):
+        # data=None, test=True: if test fittedvalues computed already, return it, otherwise return train fittedvalues
+        # data=None, test=False: compute the train fittedvalues
+        # data given, test=True: if test fittedvalues computed already, return it, otherwise compute it and send back
+        # data given, test=False: compute the fittedvalues for that given dataset.
+        no_data_given = data is None
+        if test and self.test_fittedvalues is not None:
+            return self.test_fittedvalues
+        if no_data_given:
+            data = self.data
+        fittedvalues = self.model.predict(data, None)
+        if test and not no_data_given:
+            self.test_fittedvalues = fittedvalues
+        return fittedvalues
+    
+    def residuals(self, data=None, test=True):
+        # output should be a pd.DataFrame, rows index should correspond to the original data
+        # the series should not contain NaN timestamps.
+        if data is None:
+            data = self.data
+        fittedvalues = self.fittedvalues(data, test=test)
+        targetdata = data[self.target]
+        targetdata = targetdata[fittedvalues.index]
+        residuals = targetdata - fittedvalues
+        # make the results a dataframe adressable by target.
+        df = pd.DataFrame({self.target: residuals})
+        return df
+    
+    def stopping_metric(self, previous_model, method):
+        # should return a metric that corresponds more or less to p-values.
+        # the lower, the more incentive to keep adding new variables to the selected set
+        if method=="rmse_diff":
+            residuals_full = self.residuals(test=True)[self.target]
+            residuals_partial = previous_model.residuals(test=True)[self.target]
+            rmse_full = np.sqrt(pd.Series.sum(residuals_full**2))/len(residuals_full)
+            rmse_partial = np.sqrt(pd.Series.sum(residuals_partial**2))/len(residuals_partial)
+            return residuals_full - residuals_partial
+    
+    def has_too_many_parameters(self):
+        # part of the stopping criterion: verify if there are 10 times more timestamps in the data
+        # than parameters in the model.
+        # for now unused
+        return False
 

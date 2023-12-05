@@ -698,4 +698,20 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
         self._forward(data, initial_selected=initial_selected)
         self._backward(data)
         self.fitted = True
-    
+
+
+class tsGOMP_train_val(tsGOMP_OneAssociation):
+    def _train_val_data_split(self, data):
+        validation_size = int(self.config.get("validation_ratio", 0.1)*len(data))
+        data_train = data.iloc[:-validation_size]
+        data_test = data.iloc[-validation_size:]
+        return data_train, data_test
+    def _train_model(self, data, selected_set):
+        """Creates a model on the selected variables.
+        In this version, also uses a train val split to compute residuals."""
+        current_model = self.config["model"](self.config["model.config"], target=self.target)
+        data_train, data_test = self.train_val_data_split(data[selected_set])
+        current_model.fit(data_train)
+        current_model.fittedvalues(data_test)
+        return current_model
+
