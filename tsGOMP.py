@@ -710,8 +710,8 @@ class tsGOMP_train_val(tsGOMP_OneAssociation):
         """Creates a model on the selected variables.
         In this version, also uses a train val split to compute residuals."""
         current_model = self.config["model"](self.config["model.config"], target=self.target)
-        data_train, data_test = self.train_val_data_split(data[selected_set])
+        data_train, data_test = self._train_val_data_split(data[selected_set])
         current_model.fit(data_train)
-        current_model.fittedvalues(data_test)
+        r=current_model.residuals(data_test, test=True)
         return current_model
 

@@ -64,8 +64,8 @@ class LearningModel:
         # the lower, the more incentive to keep adding new variables to the selected set
         pass
     
-    def has_too_many_parameters(self):
-        # part of the stopping criterion: verify if there are 10 times more timestamps in the data
+    def has_too_many_parameters(self, ratio):
+        # part of the stopping criterion: verify if there are ratio times more timestamps in the data
         # than parameters in the model.
         pass
         
@@ -863,6 +863,7 @@ class SVRModel(LearningModel):
     def __init__(self, config, target):
         super().__init__(config, target)
         self.test_fittedvalues = None
+        self.test_residuals = None
 
     def fit(self, data):
         self.model = baselines.estimators.SVRModel(self.config, self.target)
@@ -884,16 +885,25 @@ class SVRModel(LearningModel):
         return fittedvalues
     
     def residuals(self, data=None, test=True):
-        # output should be a pd.DataFrame, rows index should correspond to the original data
-        # the series should not contain NaN timestamps.
-        if data is None:
-            data = self.data
+        # data=None, test=True: if test residuals computed already, return it, otherwise return train residuals
+        # data=None, test=False: compute the train residuals
+        # data given, test=True: if test residuals computed already, return it, otherwise compute it and send back
+        # data given, test=False: compute the residuals for that given dataset.
+        no_data_given = data is None
+        if test and self.test_residuals is not None:
+            return self.test_residuals
         fittedvalues = self.fittedvalues(data, test=test)
+        if no_data_given:
+            data = self.data
+        
         targetdata = data[self.target]
         targetdata = targetdata[fittedvalues.index]
         residuals = targetdata - fittedvalues
         # make the results a dataframe adressable by target.
         df = pd.DataFrame({self.target: residuals})
+            
+        if test and not no_data_given:
+            self.test_residuals = df
         return df
     
     def stopping_metric(self, previous_model, method):
@@ -904,9 +914,9 @@ class SVRModel(LearningModel):
             residuals_partial = previous_model.residuals(test=True)[self.target]
             rmse_full = np.sqrt(pd.Series.sum(residuals_full**2))/len(residuals_full)
             rmse_partial = np.sqrt(pd.Series.sum(residuals_partial**2))/len(residuals_partial)
-            return residuals_full - residuals_partial
+            return rmse_full - rmse_partial
     
-    def has_too_many_parameters(self):
+    def has_too_many_parameters(self, ratio):
         # part of the stopping criterion: verify if there are 10 times more timestamps in the data
         # than parameters in the model.
         # for now unused
