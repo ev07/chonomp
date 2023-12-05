@@ -865,7 +865,7 @@ class SVRModel(LearningModel):
         self.test_fittedvalues = None
 
     def fit(self, data):
-        self.model = baselines.estimators.SVRModel(config, self.target)
+        self.model = baselines.estimators.SVRModel(self.config, self.target)
         self.model.fit(data, None)
 
     def fittedvalues(self, data=None, test=True):
