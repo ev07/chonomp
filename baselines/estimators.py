@@ -115,6 +115,15 @@ class SKLearnVectorized(Estimator):
             X = X[:,mask]
         
         return X, y, indexes
+    
+    def fit(self, data_train, selected_features=None):
+        X, y, _ = self.prepare_data_vectorize(data_train, selected_features)
+        self.model = self.model.fit(X,y)
+    def predict(self, data_test, selected_features=None):
+        X, y, indexes = self.prepare_data_vectorize(data_test, selected_features)
+        fittedvalues = self.model.predict(X)
+        fittedvalues = pd.Series(fittedvalues, index=indexes)
+        return fittedvalues
 
 class SVRModel(SKLearnVectorized):
     def __init__(self, config, target):
@@ -206,10 +215,10 @@ def generate_optuna_parameters(name, trial):
 def generate_optuna_search_space(name):
     hp = dict()
     if name == "ARDLModel":
-        hp["lags"] = [5,10,15]
+        hp["lags"] = [20]
         hp["trend"] = ["n","ct"]
     elif name == "SVRModel":
-        hp["lags"] = [5,10,15]
+        hp["lags"] = [20]
         hp["kernel"] = ["rbf", "sigmoid"]
         hp["coef0"] = [0.0]
         hp["C"] = [ 0.1, 1., 10.]
