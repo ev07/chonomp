@@ -1,6 +1,6 @@
 import numpy as np
 
-from tsGOMP import tsGOMP_OneAssociation
+from tsGOMP import tsGOMP_OneAssociation, tsGOMP_train_val
 from associations import PearsonMultivariate, SpearmanMultivariate
 from models import ARDLModel, SVRModel
 
@@ -240,7 +240,11 @@ class BackwardChronOMP(ChronOMP):
         return hp
         
 class TrainTestChronOMP(ChronOMP):
-    
+    def __init__(self, config, target):
+        super().__init__(config,target)
+        config = self._config_init()
+        self.instance = tsGOMP_train_val(config, self.target)
+        
     def _config_init(self):
         association_constructor = {"Pearson":PearsonMultivariate, "Spearman": SpearmanMultivariate}[self.config["association"]]
         association_config = self.config["association_config"]
