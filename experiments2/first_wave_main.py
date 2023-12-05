@@ -134,6 +134,34 @@ def setup_dataset(dataset_name, filename, target):
             "TARGET_CHOICE": "sampling",
             "MAXIMUM_NUMBER_TARGETS": 100}
             }
+    elif dataset_name == "weather":
+        config = {"DATASET":{
+            "PATH": "monash/weather",
+            "CAUSES": "parents",
+            "TARGET_CHOICE": "sampling",
+            "MAXIMUM_NUMBER_TARGETS": 1}
+            }
+    elif dataset_name == "electricity":
+        config = {"DATASET":{
+            "PATH": "monash/electricity",
+            "CAUSES": "parents",
+            "TARGET_CHOICE": "sampling",
+            "MAXIMUM_NUMBER_TARGETS": 1}
+            }
+    elif dataset_name == "solar":
+        config = {"DATASET":{
+            "PATH": "monash/solar",
+            "CAUSES": "parents",
+            "TARGET_CHOICE": "sampling",
+            "MAXIMUM_NUMBER_TARGETS": 1}
+            }
+    elif dataset_name == "traffic":
+        config = {"DATASET":{
+            "PATH": "monash/traffic",
+            "CAUSES": "parents",
+            "TARGET_CHOICE": "sampling",
+            "MAXIMUM_NUMBER_TARGETS": 1}
+            }
     config["DATASET"]["NAME"] = dataset_name
     config["DATASET"]["FILENAME"] = filename
     config["DATASET"]["TARGET"] = target

@@ -11,7 +11,7 @@ rootdir = '../'
 sys.path.append(rootdir)
 
 from baselines.estimators import Estimator, ARDLModel, SVRModel, KNeighborsRegressorModel
-from baselines.feature_selection import ChronOMP, BivariateGranger, ModifiedRFE, VectorLassoLars, BackwardChronOMP
+from baselines.feature_selection import ChronOMP, BivariateGranger, ModifiedRFE, VectorLassoLars, BackwardChronOMP, TrainTestChronOMP
 
 from data_opener import open_dataset_and_ground_truth
 
@@ -37,6 +37,7 @@ def get_FS(config_file):
     
     algo = {"ChronOMP":ChronOMP,
             "BackwardChronOMP":BackwardChronOMP,
+            "TrainTestChronOMP": TrainTestChronOMP,
             "BivariateGranger":BivariateGranger,
             "VectorLassoLars":VectorLassoLars,
             "ModifiedRFE":ModifiedRFE}[fs_info["NAME"]]

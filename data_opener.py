@@ -121,8 +121,15 @@ def open_dataset_and_ground_truth(dataset_name: str,
     elif dataset_name=="AusMeteo":
         df = pd.read_csv(rootdir + "/data/" + dataset_name + "/" + filename)
         df.columns = [str(i) for i in df.columns]
+    elif dataset_name=="monash/electricity" or\
+         dataset_name=="monash/traffic" or\
+         dataset_name=="monash/weather" or \
+         dataset_name=="monash/solar":
+        df = pd.read_csv(rootdir + "/data/" + dataset_name + "/" + filename)
+        df.columns = [str(i) for i in df.columns]
     else:
         raise Exception("Dataset specified in config file is not implemented")
+        
 
     var_names = list(df.columns)
     
@@ -256,6 +263,7 @@ def open_dataset_and_ground_truth(dataset_name: str,
         for cause, effect in df_truth.values:
             ground_truth_parents[str(effect)].append((str(cause), 1))
     
+    # datasets without ground truth
     elif dataset_name=="Appliances":
         var_names = ["Appliances"]
         return df, var_names, None, None
@@ -268,7 +276,8 @@ def open_dataset_and_ground_truth(dataset_name: str,
         return df, var_names, None, None
     elif dataset_name=="AusMeteo":
         return df, var_names, None, None
-            
+    elif dataset_name in ["monash/solar", "monash/electricity", "monash/traffic", "monash/weather"]:
+        return df, var_names, None, None
     else:
         raise Exception("Dataset specified in argument is not implemented")
     
