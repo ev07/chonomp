@@ -439,8 +439,6 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
         assert "method" in self.config
         assert "model" in self.config
         assert "model.config" in self.config
-        assert "significance_threshold_backward" in self.config
-        assert "method_backward" in self.config
     
     def _prebuild_association_objects(self):
         "Initialize association object to respect the main algorithm structure"
