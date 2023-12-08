@@ -44,6 +44,7 @@ def save_append(df, path):
 
 def setup_dataset(dataset_name, filename, target):
     config = dict()
+    config["DATASET"] = dict()
     config["DATASET"]["NAME"] = dataset_name
     config["DATASET"]["FILENAME"] = filename
     config["DATASET"]["TARGET"] = target
