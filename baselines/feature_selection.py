@@ -11,7 +11,7 @@ from sklearn.feature_selection import SelectFromModel
           
 from statsmodels.tsa.vector_ar.var_model import VAR
 
-from baselines.SyPI import SyPI_method
+#from baselines.SyPI import SyPI_method
 
 #  Error class for the SelectFromModel instance, where giving a maximal number of selected variables above the size of the data is impossible.
 
@@ -283,7 +283,8 @@ class TrainTestChronOMP(ChronOMP):
                        "method": hyperparameters.get("method", "rmse_diff"),
                        "max_features": hyperparameters.get("max_features", 5),
                        "valid_obs_param_ratio": hyperparameters.get("valid_obs_param_ratio", 10),
-                       "choose_oracle": False
+                       "choose_oracle": False,
+                       "validation_ratio":0.1
                      }
                  }
         return config
