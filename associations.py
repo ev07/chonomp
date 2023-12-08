@@ -1,10 +1,11 @@
 from scipy.stats import pearsonr, spearmanr, beta, rankdata
 from scipy.special import stdtr
+import pingouin
 
-from mass_ts import mass2
+#from mass_ts import mass2
 
 import numpy as np
-
+import pandas as pd
 
 ##
 #
@@ -300,7 +301,7 @@ class PearsonMultivariate(Association):
             return np.mean(coefficients, axis=-1)
 
 
-class SpearmanMultivariate(Association):
+class SpearmanMultivariate(PearsonMultivariate):
     """
     Computes for each lag up to <lags> of the given variables, its <return_type> with the residuals.
     The result is then aggregated into a single score using <selection_rule>.
@@ -328,21 +329,6 @@ class SpearmanMultivariate(Association):
            - max: use maximal correlation / minimal p-value
            - average: use average correlation / average p-value
         """
-
-    def _select_correct_rows(self, residuals_df, variables_df):
-        # remove nans
-        residuals_df = residuals_df[~residuals_df.isnull().any(axis=1)]
-        residuals_indexes = set(residuals_df.index)
-        #adjust variable timestamps to residuals since learning process lags will have reduced the length of the series
-        variables_ilocs = [i for i in range(variables_df.shape[0]) if (variables_df.index[i] in residuals_indexes)]
-        #remove the first <lags> elements of the residuals for mass2_modified computation.
-        residuals_ilocs = [i for i in range(residuals_df.shape[0])]
-        residuals_ilocs = residuals_ilocs[self.config["lags"]:]
-        
-        residuals = residuals_df.iloc[residuals_ilocs].values.reshape((-1,))
-        variables = variables_df.iloc[variables_ilocs].values
-        return residuals, variables
-    
     def _compute_ranks(self,residuals,variables):
         rr = rankdata(residuals)
         rv = rankdata(variables,axis=0)
@@ -370,3 +356,67 @@ class SpearmanMultivariate(Association):
         elif self.config["selection_rule"] == "average":
             return np.mean(coefficients, axis=-1)
 
+
+class LinearPartialCorrelation():
+    def __init__(self, config):
+        self.config = config
+        self._check_config()
+        
+    def _check_config(self):
+        assert "method" in self.config
+        assert "lags" in self.config
+        assert "selection_rule" in self.config
+    
+    def _prepare_data(self, condition_df, residuals_df, candidate_df):
+        """
+        Pingouin partial_corr asks for the data in form of a dataframe.
+        This function formats the lags of condition, candidate and joins them with residuals.
+        """
+        # remove nans eventually occuring in residuals
+        residuals_df = residuals_df[~residuals_df.isnull().any(axis=1)]
+        
+        # add lags of the condition variable
+        col_name = condition_df.columns[0]
+        for lag in range(1,self.config["lags"]+1):
+            condition_df[col_name+"lag -"+str(lag)] = condition_df[col_name].shift(lag)
+        condition_df = condition_df.drop(columns=[col_name])
+        condition_df = condition_df.iloc[self.config["lags"]:]
+        
+        # add lags of the tested variable
+        col_name = candidate_df.columns[0]
+        for lag in range(1,self.config["lags"]+1):
+            candidate_df[col_name+"lag -"+str(lag)] = candidate_df[col_name].shift(lag)
+        candidate_df = candidate_df.drop(columns=[col_name])
+        candidate_df = candidate_df.iloc[self.config["lags"]:]
+        
+        # create new index
+        new_index = residuals_df.index.intersection(condition_df.index)
+        residuals_df = residuals_df.loc[new_index]
+        candidate_df = candidate_df.loc[new_index]
+        condition_df = condition_df.loc[new_index]
+        
+        # concatenate
+        df = pd.concat([residuals_df, candidate_df, condition_df],axis=1)
+        
+        cond_names = condition_df.columns
+        cand_names = candidate_df.columns
+        return df, cond_names, cand_names
+    
+    def partial_corr(self, residuals_df, candidate_df, condition_df):
+        """
+        Compute the partial correlation of residuals_df with each lag of candidate_df by taking condition_df variable into account.
+        """
+        data, cond_names, cand_names = self._prepare_data(condition_df, residuals_df, candidate_df)
+        resid_name = residuals_df.columns[0]
+        
+        pvals = []
+        for cand_name in cand_names:
+            res = pingouin.partial_corr(data, x=resid_name, y=cand_name, covar=list(cond_names), method=self.config["method"])
+            pvals.append(res["p-val"].values[0])
+        
+        if self.config["selection_rule"] == "min":
+            return np.min(pvals, axis=-1)
+        elif self.config["selection_rule"] == "average":
+            return np.mean(pvals, axis=-1)
+            
+            

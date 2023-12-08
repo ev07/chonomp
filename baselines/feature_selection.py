@@ -283,7 +283,8 @@ class TrainTestChronOMP(ChronOMP):
                        "method": hyperparameters.get("method", "rmse_diff"),
                        "max_features": hyperparameters.get("max_features", 5),
                        "valid_obs_param_ratio": hyperparameters.get("valid_obs_param_ratio", 10),
-                       "choose_oracle": False
+                       "choose_oracle": False,
+                       "validation_ratio":0.1
                      }
                  }
         return config
