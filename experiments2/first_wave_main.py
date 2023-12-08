@@ -50,128 +50,128 @@ def setup_dataset(dataset_name, filename, target):
     config["DATASET"]["HOLDOUT"] = True
     config["DATASET"]["HOLDOUT_RATIO"] = 0.1
     if dataset_name == "VAR10":
-        config = {"DATASET":{**config{"DATASET"],
+        config = {"DATASET":{**config["DATASET"],
             "PATH": "VARSmall/returns",
             "CAUSES": "parents",
             "TARGET_CHOICE": "all",
             "MAXIMUM_NUMBER_TARGETS": None}
             }
     elif dataset_name == "VAR10000":
-        config = {"DATASET":{**config{"DATASET"],
+        config = {"DATASET":{**config["DATASET"],
             "PATH": "VARLarge/returns",
             "CAUSES": "parents",
             "TARGET_CHOICE": "sampling",
             "MAXIMUM_NUMBER_TARGETS": 10}
             }
     elif dataset_name == "VAR10000_redundant":
-        config = {"DATASET":{**config{"DATASET"],
+        config = {"DATASET":{**config["DATASET"],
             "PATH": "VARLarge/redundant/returns",
             "CAUSES": "parents",
             "TARGET_CHOICE": "sampling",
             "MAXIMUM_NUMBER_TARGETS": 10}
             }
     elif dataset_name == "7ts2h":
-        config = {"DATASET":{**config{"DATASET"],
+        config = {"DATASET":{**config["DATASET"],
             "PATH": "SynthNonlin/7ts2h",
             "CAUSES": "parents",
             "TARGET_CHOICE": "all",
             "MAXIMUM_NUMBER_TARGETS": None}
             }
     elif dataset_name == "fMRI":
-        config = {"DATASET":{**config{"DATASET"],
+        config = {"DATASET":{**config["DATASET"],
             "PATH": "fMRI_processed_by_Nauta/returns/our_selection",
             "CAUSES": "parents",
             "TARGET_CHOICE": "all",
             "MAXIMUM_NUMBER_TARGETS": None}
             }
     elif dataset_name == "CLIM":
-        config = {"DATASET":{**config{"DATASET"],
+        config = {"DATASET":{**config["DATASET"],
             "PATH": "TestCLIM_N-5_T-250/returns",
             "CAUSES": "parents",
             "TARGET_CHOICE": "all",
             "MAXIMUM_NUMBER_TARGETS": None}
             }
     elif dataset_name == "piecewiseLinear":
-        config = {"DATASET":{**config{"DATASET"],
+        config = {"DATASET":{**config["DATASET"],
             "PATH": "dgp/piecewise_linear/returns",
             "CAUSES": "parents",
             "TARGET_CHOICE": "sampling",
             "MAXIMUM_NUMBER_TARGETS": 10}
             }
     elif dataset_name == "monotonic":
-        config = {"DATASET":{**config{"DATASET"],
+        config = {"DATASET":{**config["DATASET"],
             "PATH": "dgp/monotonic/returns",
             "CAUSES": "parents",
             "TARGET_CHOICE": "sampling",
             "MAXIMUM_NUMBER_TARGETS": 10}
             }
     elif dataset_name == "trigonometric":
-        config = {"DATASET":{**config{"DATASET"],
+        config = {"DATASET":{**config["DATASET"],
             "PATH": "dgp/trigonometric/returns",
             "CAUSES": "parents",
             "TARGET_CHOICE": "sampling",
             "MAXIMUM_NUMBER_TARGETS": 10}
             }
     elif dataset_name == "wikipedia":
-        config = {"DATASET":{**config{"DATASET"],
+        config = {"DATASET":{**config["DATASET"],
             "PATH": "wikipediaMathEssencials/returns",
             "CAUSES": "parents",
             "TARGET_CHOICE": "sampling",
             "MAXIMUM_NUMBER_TARGETS": 100}
             }
     elif dataset_name == "Appliances":
-        config = {"DATASET":{**config{"DATASET"],
+        config = {"DATASET":{**config["DATASET"],
             "PATH": "Appliances",
             "CAUSES": "parents",
             "TARGET_CHOICE": "given",
             "MAXIMUM_NUMBER_TARGETS": None}
             }
     elif dataset_name == "AusMacro":
-        config = {"DATASET":{**config{"DATASET"],
+        config = {"DATASET":{**config["DATASET"],
             "PATH": "AusMacro",
             "CAUSES": "parents",
             "TARGET_CHOICE": "given",
             "MAXIMUM_NUMBER_TARGETS": None}
             }
     elif dataset_name == "AusMeteo":
-        config = {"DATASET":{**config{"DATASET"],
+        config = {"DATASET":{**config["DATASET"],
             "PATH": "AusMeteo",
             "CAUSES": "parents",
             "TARGET_CHOICE": "sampling",
             "MAXIMUM_NUMBER_TARGETS": 100}
             }
     elif dataset_name == "weather":
-        config = {"DATASET":{**config{"DATASET"],
+        config = {"DATASET":{**config["DATASET"],
             "PATH": "monash/weather",
             "CAUSES": "parents",
             "TARGET_CHOICE": "sampling",
-            "MAXIMUM_NUMBER_TARGETS": 1,
-            "HOLDOUT_RATIO": 0.9}
+            "MAXIMUM_NUMBER_TARGETS": 1}
             }
+        config["HOLDOUT_RATIO"] = 0.9
     elif dataset_name == "electricity":
-        config = {"DATASET":{**config{"DATASET"],
+        config = {"DATASET":{**config["DATASET"],
             "PATH": "monash/electricity",
             "CAUSES": "parents",
             "TARGET_CHOICE": "sampling",
-            "MAXIMUM_NUMBER_TARGETS": 1,
-            "HOLDOUT_RATIO": 0.99}
+            "MAXIMUM_NUMBER_TARGETS": 1}
             }
+        config["HOLDOUT_RATIO"] = 0.9
     elif dataset_name == "solar":
-        config = {"DATASET":{**config{"DATASET"],
+        config = {"DATASET":{**config["DATASET"],
             "PATH": "monash/solar",
             "CAUSES": "parents",
             "TARGET_CHOICE": "sampling",
-            "MAXIMUM_NUMBER_TARGETS": 1,
-            "HOLDOUT_RATIO": 0.9}
+            "MAXIMUM_NUMBER_TARGETS": 1}
             }
+        config["HOLDOUT_RATIO"] = 0.9
     elif dataset_name == "traffic":
-        config = {"DATASET":{**config{"DATASET"],
+        config = {"DATASET":{**config["DATASET"],
             "PATH": "monash/traffic",
             "CAUSES": "parents",
             "TARGET_CHOICE": "sampling",
-            "MAXIMUM_NUMBER_TARGETS": 1,
-            "HOLDOUT_RATIO": 0.9}
+            "MAXIMUM_NUMBER_TARGETS": 1}
             }
+        config["HOLDOUT_RATIO"] = 0.9
 
     return config
 
