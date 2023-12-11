@@ -1,6 +1,8 @@
 import pandas as pd
-from first_wave_main import setup_dataset
-from routines import full_experiment
+import sys
+sys.path.append("../")
+from experiments2.first_wave_main import setup_dataset
+from experiments2.routines import full_experiment
 import numpy as np
 
 #####

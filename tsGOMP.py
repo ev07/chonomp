@@ -858,6 +858,7 @@ class tsGOMP_multiple_subsets(tsGOMP_OneAssociation):
 
         # create selected feature set
         self.selected_features = selected_features
+        self.equivalent_variables = equivalent_variables
         # remove the last selected feature if irrelevant and if not the target itself (always send back one variable at least)
         if len(self.selected_features)>1:
             if current_model.stopping_metric(previous_model, self.config["method"]) >= self.config["significance_threshold"]:

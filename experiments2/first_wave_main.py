@@ -7,11 +7,11 @@ import numpy as np
 import optuna
 from optuna.samplers import RandomSampler, GridSampler
 
-from routines import full_experiment as launch_experiment
-from routines import TargetNotSelectedError
-
 rootdir = '../'
 sys.path.append(rootdir)
+
+from experiments2.routines import full_experiment as launch_experiment
+from experiments2.routines import TargetNotSelectedError
 
 import baselines.estimators
 import baselines.feature_selection
@@ -148,7 +148,7 @@ def setup_dataset(dataset_name, filename, target):
             "TARGET_CHOICE": "sampling",
             "MAXIMUM_NUMBER_TARGETS": 1}
             }
-        config["HOLDOUT_RATIO"] = 0.9
+        config["DATASET"]["HOLDOUT_RATIO"] = 0.9
     elif dataset_name == "electricity":
         config = {"DATASET":{**config["DATASET"],
             "PATH": "monash/electricity",
@@ -156,7 +156,7 @@ def setup_dataset(dataset_name, filename, target):
             "TARGET_CHOICE": "sampling",
             "MAXIMUM_NUMBER_TARGETS": 1}
             }
-        config["HOLDOUT_RATIO"] = 0.9
+        config["DATASET"]["HOLDOUT_RATIO"] = 0.9
     elif dataset_name == "solar":
         config = {"DATASET":{**config["DATASET"],
             "PATH": "monash/solar",
@@ -164,7 +164,7 @@ def setup_dataset(dataset_name, filename, target):
             "TARGET_CHOICE": "sampling",
             "MAXIMUM_NUMBER_TARGETS": 1}
             }
-        config["HOLDOUT_RATIO"] = 0.9
+        config["DATASET"]["HOLDOUT_RATIO"] = 0.9
     elif dataset_name == "traffic":
         config = {"DATASET":{**config["DATASET"],
             "PATH": "monash/traffic",
@@ -172,7 +172,7 @@ def setup_dataset(dataset_name, filename, target):
             "TARGET_CHOICE": "sampling",
             "MAXIMUM_NUMBER_TARGETS": 1}
             }
-        config["HOLDOUT_RATIO"] = 0.9
+        config["DATASET"]["HOLDOUT_RATIO"] = 0.9
 
     return config
 
