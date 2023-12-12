@@ -800,7 +800,7 @@ class tsGOMP_multiple_subsets(tsGOMP_OneAssociation):
         super()._prebuild_association_objects()
         # add partial correlation object. For now, unique.
         partial_corr_constructor = self.config["partial_correlation"]
-        partial_correlation_object = association_constructor(self.config["partial_correlation.config"])
+        partial_correlation_object = partial_corr_constructor(self.config["partial_correlation.config"])
         self.partial_correlation_objects = partial_correlation_object
     
     def _equivalent_set(self, data, chosen_variable, residuals, candidate_variables):
@@ -814,8 +814,11 @@ class tsGOMP_multiple_subsets(tsGOMP_OneAssociation):
             residuals_df = residuals
             condition_df = data[[chosen_variable]]
             pvalue = self.partial_correlation_objects.partial_corr(residuals_df, candidate_df, condition_df)
-            if pvalue < equivalence_threshold:
+            if pvalue > equivalence_threshold:  # no relation found between candidate and residuals given condition
                 pvalue = self.partial_correlation_objects.partial_corr(residuals_df, condition_df, candidate_df)
+                if pvalue > equivalence_threshold:
+                    equivalent_list.append(candidate)
+        return equivalent_list
             
 
     def _forward(self, data, initial_selected=[]):
@@ -847,7 +850,7 @@ class tsGOMP_multiple_subsets(tsGOMP_OneAssociation):
             
             # compute equivalent set and remove equivalent features
             equivalent_variables[chosen_variable] = self._equivalent_set(data, chosen_variable, residuals, candidate_variables)
-            for to_remove in equivalent_features[chosen_variable]:
+            for to_remove in equivalent_variables[chosen_variable]:
                 candidate_variables.remove(to_remove)
             
             # compute new model with this variable
@@ -862,6 +865,7 @@ class tsGOMP_multiple_subsets(tsGOMP_OneAssociation):
         # remove the last selected feature if irrelevant and if not the target itself (always send back one variable at least)
         if len(self.selected_features)>1:
             if current_model.stopping_metric(previous_model, self.config["method"]) >= self.config["significance_threshold"]:
-                self.selected_features = self.selected_features[:-1]
+                removed = self.selected_features.pop(-1)
+                self.equivalent_variables = {x:self.equivalent_variables[x] for x in self.equivalent_variables if x!=removed}
     
     
