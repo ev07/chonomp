@@ -377,29 +377,28 @@ class LinearPartialCorrelation():
         
         # add lags of the condition variable
         col_name = condition_df.columns[0]
+        condition_cols = pd.DataFrame()
         for lag in range(1,self.config["lags"]+1):
-            condition_df[col_name+"lag -"+str(lag)] = condition_df[col_name].shift(lag)
-        condition_df = condition_df.drop(columns=[col_name])
-        condition_df = condition_df.iloc[self.config["lags"]:]
+            condition_cols[col_name+"lag -"+str(lag)] = condition_df[col_name].shift(lag)
+        condition_cols = condition_cols.iloc[self.config["lags"]:]
         
         # add lags of the tested variable
         col_name = candidate_df.columns[0]
+        candidate_cols = pd.DataFrame()
         for lag in range(1,self.config["lags"]+1):
-            candidate_df[col_name+"lag -"+str(lag)] = candidate_df[col_name].shift(lag)
-        candidate_df = candidate_df.drop(columns=[col_name])
-        candidate_df = candidate_df.iloc[self.config["lags"]:]
+            candidate_cols[col_name+"lag -"+str(lag)] = candidate_df[col_name].shift(lag)
+        candidate_cols = candidate_cols.iloc[self.config["lags"]:]
         
         # create new index
-        new_index = residuals_df.index.intersection(condition_df.index)
+        new_index = residuals_df.index.intersection(condition_cols.index)
         residuals_df = residuals_df.loc[new_index]
-        candidate_df = candidate_df.loc[new_index]
-        condition_df = condition_df.loc[new_index]
+        candidate_cols = candidate_cols.loc[new_index]
+        condition_cols = condition_cols.loc[new_index]
         
         # concatenate
-        df = pd.concat([residuals_df, candidate_df, condition_df],axis=1)
-        
-        cond_names = condition_df.columns
-        cand_names = candidate_df.columns
+        df = pd.concat([residuals_df, candidate_cols, condition_cols],axis=1)
+        cond_names = condition_cols.columns
+        cand_names = candidate_cols.columns
         return df, cond_names, cand_names
     
     def partial_corr(self, residuals_df, candidate_df, condition_df):

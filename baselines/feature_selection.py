@@ -1,7 +1,7 @@
 import numpy as np
 
-from tsGOMP import tsGOMP_OneAssociation, tsGOMP_train_val
-from associations import PearsonMultivariate, SpearmanMultivariate
+from tsGOMP import tsGOMP_OneAssociation, tsGOMP_train_val, tsGOMP_multiple_subsets
+from associations import PearsonMultivariate, SpearmanMultivariate, LinearPartialCorrelation
 from models import ARDLModel, SVRModel
 
 from sklearn.feature_selection import RFE
@@ -238,10 +238,66 @@ class BackwardChronOMP(ChronOMP):
         hp["significance_threshold_backward"] = [0.00001, 0.0001, 0.001, 0.01]
         hp["method_backward"] = ["wald-test"]
         return hp
+
+class MultiSetChronOMP(ChronOMP):
+    def __init__(self, config, target):
+        self.config=config
+        self.target = target
+        config = self._config_init()
+        self.instance = tsGOMP_multiple_subsets(config, self.target)
         
+    def _config_init(self):
+        association_constructor = {"Pearson":PearsonMultivariate, "Spearman": SpearmanMultivariate}[self.config["association"]]
+        association_config = self.config["association_config"]
+        
+        model_constructor = {"ARDL":ARDLModel}[self.config["model"]]
+        model_config = self.config["model_config"]
+        
+        partial_constructor = {"parr_corr":LinearPartialCorrelation}[self.config["partial_correlation"]]
+        partial_config = self.config["partial_correlation.config"]
+        
+        config = self.config["config"]
+        config = {**config, "association": association_constructor,
+                  "association.config": association_config,
+                  "model": model_constructor,
+                  "model.config": model_config,
+                  "partial_correlation": partial_constructor,
+                  "partial_correlation.config": partial_config,
+                  }
+        return config
+    def _complete_config_from_parameters(hyperparameters):
+        config = ChronOMP._complete_config_from_parameters(hyperparameters)
+        config["config"]["equivalence_threshold"] = hyperparameters.get("equivalence_threshold", 0.05)
+        config["partial_correlation"] = hyperparameters.get("partial_correlation", "parr_corr")
+        config["partial_correlation.config"] = {
+                       "method": hyperparameters.get("parr_corr_method", "pearson"),
+                       "lags": hyperparameters.get("lags", 10),
+                       "selection_rule": hyperparameters.get("parr_corr_selection_rule", "min"),
+        }
+        return config
+    def _generate_optuna_parameters(trial):
+        hp = ChronOMP._generate_optuna_parameters(trial)
+        hp["equivalence_threshold"] = trial.suggest_float("equivalence_threshold", 0.00001, 0.1, log=True)
+        hp["partial_correlation"] = trial.suggest_categorical("partial_correlation",["parr_corr"])
+        hp["parr_corr_method"] = trial.suggest_categorical("parr_corr_method", ["pearson", "spearman"])
+        hp["parr_corr_selection_rule"] = trial.suggest_categorical("parr_corr_selection_rule", ["mean", "min"])
+        return hp
+    def _generate_optuna_search_space():
+        hp = ChronOMP._generate_optuna_search_space()
+        hp["equivalence_threshold"] = [0.0001, 0.001, 0.05]
+        hp["partial_correlation"] = ["parr_corr"]
+        hp["parr_corr_method"] = ["pearson", "spearman"]
+        hp["parr_corr_selection_rule"] = ["min"]
+        return hp
+
+
+
+
+
 class TrainTestChronOMP(ChronOMP):
     def __init__(self, config, target):
-        super().__init__(config,target)
+        self.config=config
+        self.target = target
         config = self._config_init()
         self.instance = tsGOMP_train_val(config, self.target)
         
