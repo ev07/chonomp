@@ -146,7 +146,7 @@ def setup_dataset(dataset_name, filename, target):
             "PATH": "monash/weather",
             "CAUSES": "parents",
             "TARGET_CHOICE": "sampling",
-            "MAXIMUM_NUMBER_TARGETS": 1}
+            "MAXIMUM_NUMBER_TARGETS": 10}
             }
         config["DATASET"]["HOLDOUT_RATIO"] = 0.9
     elif dataset_name == "electricity":
@@ -154,7 +154,7 @@ def setup_dataset(dataset_name, filename, target):
             "PATH": "monash/electricity",
             "CAUSES": "parents",
             "TARGET_CHOICE": "sampling",
-            "MAXIMUM_NUMBER_TARGETS": 1}
+            "MAXIMUM_NUMBER_TARGETS": 10}
             }
         config["DATASET"]["HOLDOUT_RATIO"] = 0.9
     elif dataset_name == "solar":
@@ -162,7 +162,7 @@ def setup_dataset(dataset_name, filename, target):
             "PATH": "monash/solar",
             "CAUSES": "parents",
             "TARGET_CHOICE": "sampling",
-            "MAXIMUM_NUMBER_TARGETS": 1}
+            "MAXIMUM_NUMBER_TARGETS": 10}
             }
         config["DATASET"]["HOLDOUT_RATIO"] = 0.9
     elif dataset_name == "traffic":
@@ -170,7 +170,7 @@ def setup_dataset(dataset_name, filename, target):
             "PATH": "monash/traffic",
             "CAUSES": "parents",
             "TARGET_CHOICE": "sampling",
-            "MAXIMUM_NUMBER_TARGETS": 1}
+            "MAXIMUM_NUMBER_TARGETS": 10}
             }
         config["DATASET"]["HOLDOUT_RATIO"] = 0.9
 
