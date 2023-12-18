@@ -211,6 +211,14 @@ def open_dataset_and_ground_truth(dataset_name: str,
         ground_truth_lags = 5
         for cause, effect, lag in df_truth.values:
             ground_truth_parents[str(effect)].append((str(cause), lag))
+    
+    elif dataset_name=="VARNoisyCopies/returns":
+        g_truth_name = "VARNoisyCopies/ground_truths/"+filename
+        df_truth = pd.read_csv(rootdir + "data/" + g_truth_name, header=None, sep=",")
+        ground_truth_parents = defaultdict(list)
+        ground_truth_lags = 5
+        for cause, effect, lag in df_truth.values:
+            ground_truth_parents[str(effect)].append((str(cause), lag))
             
     elif dataset_name=="VARSmall/returns":
         g_truth_name = "VARSmall/ground_truths/"+filename
@@ -285,6 +293,8 @@ def open_dataset_and_ground_truth(dataset_name: str,
     possible_targets = var_names
     if dataset_name=="VARLarge/redundant/returns":
         possible_targets = possible_targets[:100]
+    elif dataset_name=="VARNoisyCopies/returns":
+        possible_targets = possible_targets[:10]
     
     ################
     #

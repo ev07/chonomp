@@ -71,6 +71,13 @@ def setup_dataset(dataset_name, filename, target):
             "TARGET_CHOICE": "sampling",
             "MAXIMUM_NUMBER_TARGETS": 10}
             }
+    elif dataset_name == "VARNoisyCopies":
+        config = {"DATASET":{**config["DATASET"],
+            "PATH": "VARNoisyCopies/returns",
+            "CAUSES": "parents",
+            "TARGET_CHOICE": "all",
+            "MAXIMUM_NUMBER_TARGETS": None}
+            }
     elif dataset_name == "7ts2h":
         config = {"DATASET":{**config["DATASET"],
             "PATH": "SynthNonlin/7ts2h",
