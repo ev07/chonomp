@@ -93,6 +93,9 @@ def open_dataset_and_ground_truth(dataset_name: str,
     elif dataset_name=="VARLarge/redundant/returns":
         df = pd.read_csv(rootdir + "/data/" + dataset_name + "/" + filename)
         df.columns = [str(i) for i in df.columns]
+    elif dataset_name=="VARNoisyCopies/returns":
+        df = pd.read_csv(rootdir + "/data/" + dataset_name + "/" + filename)
+        df.columns = [str(i) for i in df.columns]
     elif dataset_name=="VARSmall/returns":
         df = pd.read_csv(rootdir + "/data/" + dataset_name + "/" + filename)
         df.columns = [str(i) for i in df.columns]
