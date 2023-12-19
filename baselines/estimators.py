@@ -223,13 +223,13 @@ def generate_optuna_search_space(name):
         hp["coef0"] = [0.0]
         hp["C"] = [ 0.1, 1., 10.]
     elif name == "KNeighborRegressorModel":
-        hp["lags"] = [5,10,15]
+        hp["lags"] = [20]
         hp["n_neighbors"] = [5,  10,  50]
         hp["weights"] = trial.suggest_categorical("weights",["uniform", "distance"])
         hp["leaf_size"] = [20, 50]
         hp["p"] = [ 1, 2]
     elif name == "LassoLarsModel":
-        hp["lags"] = [5,10,15]
+        hp["lags"] = [20]
         hp["alpha"] = [0.001,0.01, 0.1,  1.,  10.]
     return hp
 
