@@ -1,5 +1,6 @@
 from scipy.stats import pearsonr, spearmanr, beta, rankdata
 from scipy.special import stdtr
+from statsmodels.regression.linear_model import OLS
 import pingouin
 
 #from mass_ts import mass2
@@ -418,4 +419,21 @@ class LinearPartialCorrelation():
         elif self.config["selection_rule"] == "average":
             return np.mean(pvals, axis=-1)
             
-            
+class ModelBasedPartialCorrelation(LinearPartialCorrelation):
+    """
+    Compute using two models and a lr-test, whether the candidate is redundant given the condition.
+    """
+    def _check_config(self):
+        assert "lags" in self.config
+        assert "large_sample" in self.config
+
+    def partial_corr(self, residuals_df, candidate_df, condition_df):
+        residname = residuals_df.columns[0]
+        data, cond_names, cand_names = self._prepare_data(condition_df, residuals_df, candidate_df)
+        restricted_model = OLS(data[residname], data[cond_names], missing="drop").fit()
+        full_model = OLS(data[residname], data[cond_names+cand_names], missing="drop").fit()
+        lr_stat, p_value, df_diff = full_model.compare_lr_test(restricted_model, large_sample=self.config["large_sample"])
+        return p_value
+        
+        
+        
