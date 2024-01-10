@@ -75,7 +75,7 @@ def setup_dataset(dataset_name, filename, target):
         config = {"DATASET":{**config["DATASET"],
             "PATH": "VARNoisyCopies/returns",
             "CAUSES": "parents",
-            "TARGET_CHOICE": "all",
+            "TARGET_CHOICE": "given",
             "MAXIMUM_NUMBER_TARGETS": None}
             }
     elif dataset_name == "7ts2h":
