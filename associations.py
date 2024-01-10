@@ -431,7 +431,7 @@ class ModelBasedPartialCorrelation(LinearPartialCorrelation):
         residname = residuals_df.columns[0]
         data, cond_names, cand_names = self._prepare_data(condition_df, residuals_df, candidate_df)
         restricted_model = OLS(data[residname], data[cond_names], missing="drop").fit()
-        full_model = OLS(data[residname], data[cond_names+cand_names], missing="drop").fit()
+        full_model = OLS(data[residname], data[cond_names.tolist()+cand_names.tolist()], missing="drop").fit()
         lr_stat, p_value, df_diff = full_model.compare_lr_test(restricted_model, large_sample=self.config["large_sample"])
         return p_value
         
