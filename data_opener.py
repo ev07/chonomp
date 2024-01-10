@@ -59,7 +59,7 @@ def open_dataset_and_ground_truth(dataset_name: str,
      - skip_causal_step (optional): avoid computing causes_attributes_dict and lagged_causes_attributes_dict, return None, None instead.
     Returns:
      - df: the dataframe containing the MTS
-     - var_names: the list of attribute names that can be forecasting target
+     - possible_targets: the list of attribute names that can be forecasting targets
      - causes_attributes_dict: dictionary associating each attribute to the list of its relevant predictors.
      - lagged_attributes_dict: dictionary associating each attribute to the list of its relevant predictors, containing lag information.
      - (optional) if compute_window_causal_graph is True, return the window causal graph as a networkx Digraph object
@@ -385,9 +385,9 @@ def open_dataset_and_ground_truth(dataset_name: str,
         lagged_causes_attributes_dict[target_name] = lagged_causes_attributes
     
     if compute_window_causal_graph:
-        return df, var_names, causes_attributes_dict, lagged_causes_attributes_dict, window_graph
+        return df, possible_targets, causes_attributes_dict, lagged_causes_attributes_dict, window_graph
         
-    return df, var_names, causes_attributes_dict, lagged_causes_attributes_dict
+    return df, possible_targets, causes_attributes_dict, lagged_causes_attributes_dict
 
 
 
