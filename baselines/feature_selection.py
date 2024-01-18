@@ -139,10 +139,10 @@ class ChronOMP(FeatureSelector):
 
     selection_mode = "variable"  # the returned itemset consists in variables without lags.
 
-    def __init__(self, config, target):
+    def __init__(self, config, target, verbosity=0):
         super().__init__(config,target)
         config = self._config_init()
-        self.instance = tsGOMP_OneAssociation(config, self.target)
+        self.instance = tsGOMP_OneAssociation(config, self.target, verbosity=verbosity)
         
     def _config_init(self):
         association_constructor = {"Pearson":PearsonMultivariate, "Spearman": SpearmanMultivariate}[self.config["association"]]
