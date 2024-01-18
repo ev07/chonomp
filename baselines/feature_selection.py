@@ -139,10 +139,10 @@ class ChronOMP(FeatureSelector):
 
     selection_mode = "variable"  # the returned itemset consists in variables without lags.
 
-    def __init__(self, config, target):
+    def __init__(self, config, target, verbosity=0):
         super().__init__(config,target)
         config = self._config_init()
-        self.instance = tsGOMP_OneAssociation(config, self.target)
+        self.instance = tsGOMP_OneAssociation(config, self.target, verbosity=verbosity)
         
     def _config_init(self):
         association_constructor = {"Pearson":PearsonMultivariate, "Spearman": SpearmanMultivariate}[self.config["association"]]
@@ -212,7 +212,7 @@ class ChronOMP(FeatureSelector):
         hp["lags"] = [20]
         hp["trend"] = ["n","ct"]
         hp["association"] = ["Pearson"]#,"Spearman"]
-        hp["significance_threshold"] = [0.00001, 0.0001, 0.001, 0.01, 0.05]
+        hp["significance_threshold"] = [1e-20, 1e-10, 1e-5, 1e-4]
         hp["method"] = ["f-test", "lr-test"]
         hp["max_features"] = [50]
         hp["valid_obs_param_ratio"] = [1.]
@@ -234,7 +234,7 @@ class BackwardChronOMP(ChronOMP):
     def _generate_optuna_search_space():
         hp = ChronOMP._generate_optuna_search_space()
         hp["method"] = ["f-test"]
-        hp["significance_threshold"] = [0.00001, 0.0001]
+        hp["significance_threshold"] = [1e-20, 1e-10, 1e-5, 1e-4]
         hp["significance_threshold_backward"] = [0.00001, 0.0001, 0.001, 0.01]
         hp["method_backward"] = ["wald-test"]
         return hp
