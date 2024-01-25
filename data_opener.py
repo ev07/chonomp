@@ -344,14 +344,14 @@ def open_dataset_and_ground_truth(dataset_name: str,
         window_graph = nx.DiGraph()
         node_names = []
         for var in df.columns:
-            for lag in range(0, nlags):
+            for lag in range(0, nlags+1):
                 node_names.append("L" + str(lag) + "." + str(var))
         window_graph.add_nodes_from(node_names)
         for cause, effect in ground_truth_graph.edges:
             lag = int(cause[1:cause.find(".")])
             cause = cause[cause.find(".") + 1:]
             effect = effect[effect.find(".") + 1:]
-            for L in range(lag, nlags):
+            for L in range(lag, nlags+1):
                 window_graph.add_edge("L" + str(L) + "." + cause, "L" + str(L - lag) + "." + effect)
         #window_graph_pos = dict([(node,
         #                          (1 - int(node[1:node.find(".")]) / data_config['pastPointsToForecast'],
