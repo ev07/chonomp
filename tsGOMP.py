@@ -868,4 +868,79 @@ class tsGOMP_multiple_subsets(tsGOMP_OneAssociation):
                 removed = self.selected_features.pop(-1)
                 self.equivalent_variables = {x:self.equivalent_variables[x] for x in self.equivalent_variables if x!=removed}
     
+class tsGOMP_multiple_subsets_backward(tsGOMP_OneAssociation):
+    """
+    Testing equivalences after the forward backward phase
+    """
+    def check_config(self):
+        super().check_config()
+        assert "partial_correlation" in self.config
+        assert "partial_correlation.config" in self.config
+        assert "equivalence_threshold" in self.config
     
+    def _prebuild_association_objects(self):
+        super()._prebuild_association_objects()
+        # add partial correlation object. For now, unique.
+        partial_corr_constructor = self.config["partial_correlation"]
+        partial_correlation_object = partial_corr_constructor(self.config["partial_correlation.config"])
+        self.partial_correlation_objects = partial_correlation_object
+    
+    def _equivalent_set(self, data, chosen_variable, residuals, candidate_variables):
+        """
+        Compute for each candidate variable, if it is equivalent to the chosen variable by partial correlation with residuals.
+        """
+        equivalence_threshold = self.config["equivalence_threshold"]
+        equivalent_list = []
+        for candidate in candidate_variables:
+            candidate_df = data[[candidate]]
+            residuals_df = residuals
+            condition_df = data[[chosen_variable]]
+            pvalue = self.partial_correlation_objects.partial_corr(residuals_df, candidate_df, condition_df)
+            if pvalue > equivalence_threshold:  # no relation found between candidate and residuals given condition
+                pvalue = self.partial_correlation_objects.partial_corr(residuals_df, condition_df, candidate_df)
+                if pvalue > equivalence_threshold:
+                    equivalent_list.append(candidate)
+        return equivalent_list
+            
+
+    def _equivalent_search(self, data):
+        # data: pandas dataframe
+        #      index is the timestamp
+        #      column is the feature name
+        
+        # train first model with the list of covariate given.
+        candidate_variables = set(data.columns)
+        for variable in self.selected_features:
+            candidate_variables.remove(variable)
+        
+        equivalent_variables = dict()
+        
+        for index in range(1,len(self.selected_features)):
+            # create the conditioning set model
+            selected_variables = self.selected_features[:i]
+            current_model = self._train_model(data, selected_variables)
+            residuals = current_model.residuals()
+            
+            chosen_variable = self.selected_features[i]
+            
+            # compute equivalent set and remove equivalent features
+            equivalent_variables[chosen_variable] = self._equivalent_set(data, chosen_variable, residuals, candidate_variables)
+            for to_remove in equivalent_variables[chosen_variable]:
+                candidate_variables.remove(to_remove)
+        
+        self.equivalent_variables = equivalent_variables
+        
+                
+                
+    def fit_backward(self, data, initial_selected=[]):
+        """
+        Fit the forward-backward version of the algorithm.
+        Then compute the equivalence class of each selected MB member.
+        Params:
+            data: pd.DataFrame, the MTS ordered by timestamp increasing.
+        """
+        self._forward(data, initial_selected=initial_selected)
+        self._backward(data)
+        self._equivalent_search(data)
+        
+        self.fitted = True
