@@ -155,7 +155,8 @@ class ChronOMP(FeatureSelector):
         config = {**config, "association": association_constructor,
                   "association.config": association_config,
                   "model": model_constructor,
-                  "model.config": model_config}
+                  "model.config": model_config,
+                  "equivalent_version":"f"}
         return config
         
     def fit(self, data):
@@ -219,8 +220,12 @@ class ChronOMP(FeatureSelector):
         return hp
 
 class BackwardChronOMP(ChronOMP):
+    def _config_init(self):
+        config = super()._config_init()
+        config["equivalent_version"]="fb"
+        return config
     def fit(self, data):
-        self.instance.fit_backward(data)
+        self.instance.fit(data)
     def _complete_config_from_parameters(hyperparameters):
         config = ChronOMP._complete_config_from_parameters(hyperparameters)
         config["config"]["significance_threshold_backward"] = hyperparameters.get("significance_threshold_backward", 0.05)
@@ -240,9 +245,10 @@ class BackwardChronOMP(ChronOMP):
         return hp
 
 class MultiSetChronOMP(ChronOMP):
-    def __init__(self, config, target):
+    def __init__(self, config, target, equivalent_version="fg"):
         self.config=config
         self.target = target
+        self.equivalent_version = version
         config = self._config_init()
         self.instance = tsGOMP_multiple_subsets(config, self.target)
         
@@ -265,6 +271,7 @@ class MultiSetChronOMP(ChronOMP):
                   "model.config": model_config,
                   "partial_correlation": partial_constructor,
                   "partial_correlation.config": partial_config,
+                  "equivalent_version":self.equivalent_version,
                   }
         return config
     def _complete_config_from_parameters(hyperparameters):
@@ -317,7 +324,8 @@ class TrainTestChronOMP(ChronOMP):
         config = {**config, "association": association_constructor,
                   "association.config": association_config,
                   "model": model_constructor,
-                  "model.config": model_config}
+                  "model.config": model_config,
+                  "equivalent_version": "f"}
         return config
 
     def _complete_config_from_parameters(hyperparameters):
