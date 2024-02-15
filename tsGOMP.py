@@ -50,7 +50,7 @@ class tsGOMP_AutoRegressive:
         """
         self.target = target
         self.fitted = False
-        self.selected_features = None
+        self.selected_features = []
         self.config = config
         self.verbosity = verbosity
         self.history = []
@@ -411,7 +411,7 @@ class tsGOMP_oracle(tsGOMP_AutoRegressive):
 
 
 class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
-    def __init__(self, config, target, ground_truth=None, verbosity=0):
+    def __init__(self, config, target, verbosity=0):
         """
         In this version, the first residuals are computed on an autoregressive model.
         Thus, the target variable is by default in the selected set.
@@ -428,9 +428,17 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
         verbosity set at 1 keeps track of the algorithm whole history.
         """
         super().__init__(config,target,verbosity)
-        self.ground_truth = ground_truth
+        self.equivalent_variables=dict()
+        self.partial_correlation_objects = None
+    
+    def _reset_fit(self):
+        self.selected_features=[]
+        self.history = []
+        self.fitted = False
+        self.equivalent_variables=dict()
     
     def check_config(self):
+        # configuration parameters required for forward phase
         assert "association" in self.config
         assert "association.config" in self.config
         assert "max_features" in self.config
@@ -439,15 +447,33 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
         assert "method" in self.config
         assert "model" in self.config
         assert "model.config" in self.config
+        # version of the algorithm (f, fb, fg, fgb, fbg, fbc)
+        assert "equivalent_version" in self.config
+        # configuration parameters required for backward phase
+        if "b" in self.config["equivalent_version"]:
+            assert "significance_threshold_backward" in self.config
+            assert "method_backward" in self.config
+        # configuration parameters required for equivalent set discovery
+        if self.config["equivalent_version"] in ["fg", "fgb", "fbg", "fbc"]:
+            assert "partial_correlation" in self.config
+            assert "partial_correlation.config" in self.config
+            assert "equivalence_threshold" in self.config
     
     def _prebuild_association_objects(self):
         "Initialize association object to respect the main algorithm structure"
         association_constructor = self.config["association"]
         association_object = association_constructor(self.config["association.config"])
         self.association_objects = association_object
+        
+        # equivalence search objects
+        if self.config["equivalent_version"] in ["fg", "fgb", "fbg", "fbc"]:
+            partial_corr_constructor = self.config["partial_correlation"]
+            partial_correlation_object = partial_corr_constructor(self.config["partial_correlation.config"])
+            self.partial_correlation_objects = partial_correlation_object
+    
     
     def _stopping_criterion(self, current_model, previous_model, len_selected_features):
-        """return True if we should continue with more variables, False to stop"""
+        """return True if we should continue to include variables, False to stop"""
         # if enough features were selected, stop
         if len_selected_features >= self.config["max_features"]:
             return False
@@ -481,6 +507,10 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
         candidate_variables = set(data.columns)
         for variable in initial_selected:
             candidate_variables.remove(variable)
+            # remove equivalent variables if computed already
+            if self.config["equivalent_version"] in ["fgb", "fg"]:
+                for equiv in self.equivalent_variables.get(variable,[]):
+                    candidate_variables.remove(equiv)
             
         # initialize the N-1 model so that the stopping criterion can be used from the first step
         if len(initial_selected)==1:
@@ -497,6 +527,25 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
         
         return initial_selected, candidate_variables, previous_model, current_model, residuals, time_modeltrain_start, time_modeltrain_end
 
+
+    def _equivalent_set(self, data, chosen_variable, residuals, candidate_variables):
+        """
+        Compute for each candidate variable, if it is equivalent to the chosen variable by partial correlation with residuals.
+        """
+        equivalence_threshold = self.config["equivalence_threshold"]
+        equivalent_list = []
+        for candidate in candidate_variables:
+            candidate_df = data[[candidate]]
+            residuals_df = residuals
+            condition_df = data[[chosen_variable]]
+            pvalue = self.partial_correlation_objects.partial_corr(residuals_df, candidate_df, condition_df)
+            if pvalue > equivalence_threshold:  # no relation found between candidate and residuals given condition
+                pvalue = self.partial_correlation_objects.partial_corr(residuals_df, condition_df, candidate_df)
+                if pvalue > equivalence_threshold:
+                    equivalent_list.append(candidate)
+        return equivalent_list
+
+
     def _forward_verbose(self, data, initial_selected=[]):
         # data: pandas dataframe
         #      index is the timestamp
@@ -504,15 +553,10 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
         
         # train first model with the list of covariate given.
         selected_features, candidate_variables, previous_model, current_model, residuals, time_modeltrain_start, time_modeltrain_end = self._initialize_fit(initial_selected, data)
+        
+        # keep track of the equivalent covariates to each covariate.
+        equivalent_variables = self.equivalent_variables
 
-        #logging
-        if self.ground_truth is not None:
-            oracle_order = [var for var in self.ground_truth]
-            if self.target in oracle_order:
-                oracle_order.remove(self.target)
-        algo_should_have_stopped = False
-        
-        
         while self._stopping_criterion(current_model, previous_model, len(selected_features)):
             # find maximally associative variable to current residuals
             candidate_variable_list = list(candidate_variables) 
@@ -526,45 +570,32 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
             
             chosen_index = np.argmax(measured_associations)
             chosen_variable = candidate_variable_list[chosen_index]
-            
-            
-            if self.verbosity:
-                # the following only works when the association outputs a p-value
-                # for logging, find out which variables have P-values that are TP, TN, FP, FN.
-                if self.ground_truth is not None:
-                    TP = sum(1 if -pval<0.05 and var in self.ground_truth else 0 for pval,var in zip(measured_associations, candidate_variable_list))
-                    FP = sum(1 if -pval<0.05 and var not in self.ground_truth else 0 for pval,var in zip(measured_associations, candidate_variable_list))
-                    FN = sum(1 if -pval>=0.05 and var in self.ground_truth else 0 for pval,var in zip(measured_associations, candidate_variable_list))
-                    TN = sum(1 if -pval>=0.05 and var not in self.ground_truth else 0 for pval,var in zip(measured_associations, candidate_variable_list))
-                
-                # history
-                new_history_row = {"step": len(selected_features),
-                "model": current_model,
-                "associations": list(zip(measured_associations, candidate_variable_list)),
-                "associations_time": time_association_end - time_association_start,
-                "association_chosen":chosen_variable,
-                "chosen_in_ground_truth": chosen_variable in self.ground_truth if self.ground_truth is not None else None,
-                "should_have_stopped": algo_should_have_stopped,
-                "remaining_causal": len(oracle_order) if self.ground_truth is not None else None,
-                "previous_model_time": time_modeltrain_end - time_modeltrain_start
-                }
-                if self.ground_truth is not None:
-                    new_history_row = {**new_history_row,
-                                      "associations_TP": TP,
-                                      "associations_FP": FP,
-                                      "associations_TN": TN,
-                                      "associations_FN": FN}
                                   
             # put the chosen variable in the selected feature set
             selected_features.append(chosen_variable)
             candidate_variables.remove(chosen_variable)
             
-            # modify ground truth if provided, to keep on computing causal stats.
-            if self.ground_truth is not None:
-                if chosen_variable in oracle_order:
-                    oracle_order.remove(chosen_variable)
-                
-                
+            # logging
+            new_history_row = {"step": len(selected_features),
+            "model": current_model,
+            "associations": list(zip(measured_associations, candidate_variable_list)),
+            "associations_time": time_association_end - time_association_start,
+            "association_chosen":chosen_variable,
+            "model_time": time_modeltrain_end - time_modeltrain_start
+            }
+            
+            # compute equivalent set and remove equivalent features
+            time_equivset_start = time.time()
+            if self.config["equivalent_version"] in ["fgb", "fg"]:  # version of the algorithm that will require equivalence testing during forward
+                equivalent_variables[chosen_variable] = self._equivalent_set(data, chosen_variable, residuals, candidate_variables)
+                for to_remove in equivalent_variables[chosen_variable]:
+                    candidate_variables.remove(to_remove)
+            time_equivset_end = time.time()
+            
+            # logging
+            new_history_row["equiv_time"] = time_equivset_end - time_equivset_start
+            
+            
             # compute new model with this variable
             previous_model = current_model
             time_modeltrain_start = time.time()
@@ -572,123 +603,25 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
             time_modeltrain_end = time.time()
             # change residuals
             residuals = current_model.residuals()
-
-            # history
-            if self.verbosity:
-                new_history_row["stopping_metric"] = current_model.stopping_metric(previous_model, self.config["method"])
-                
-                
-                #selected feature set of the natural algorithm
-                if not algo_should_have_stopped and new_history_row["stopping_metric"] >= self.config["significance_threshold"]:
-                    algo_should_have_stopped = True
-                    new_history_row["current_is_last_model"] = True
-                    # chosen variable from this step onward should not be included in statistics about chosen variables, since it was not realy chosen.
-                else:
-                    new_history_row["current_is_last_model"] = False
-                    
-                self.history.append(new_history_row)
-        
-        if self.verbosity:
-            # for logging, add the association step
-            candidate_variable_list = list(candidate_variables)
-            time_association_start = time.time()
-            measured_associations = self.association_objects.association(residuals, data[candidate_variable_list])
-            time_association_end = time.time()
             
-            # the following only works when the association outputs a p-value
-            if self.ground_truth is not None:
-                TP = sum(1 if -pval<0.05 and var in self.ground_truth else 0 for pval,var in zip(measured_associations,candidate_variable_list))
-                FP = sum(1 if -pval<0.05 and var not in self.ground_truth else 0 for pval,var in zip(measured_associations,candidate_variable_list))
-                FN = sum(1 if -pval>=0.05 and var in self.ground_truth else 0 for pval,var in zip(measured_associations,candidate_variable_list))
-                TN = sum(1 if -pval>=0.05 and var not in self.ground_truth else 0 for pval,var in zip(measured_associations,candidate_variable_list))
-                    
-            new_history_row = {"step": len(selected_features),
-                "model":current_model,
-                "associations": list(zip(measured_associations,candidate_variable_list)),
-                "associations_time": time_association_end - time_association_start,
-                "association_chosen":None, 
-                "chosen_in_ground_truth": None,
-                "remaining_causal": None,
-                "previous_model_time": time_modeltrain_end - time_modeltrain_start,
-                "should_have_stopped": algo_should_have_stopped,
-                "current_is_last_model": not algo_should_have_stopped, #if true, then chosen variable from this step onward should not be included.
-                "stopping_metric": None}
-            if self.ground_truth is not None:
-                new_history_row = {**new_history_row,
-                    "associations_TP": TP,
-                    "associations_FP": FP,
-                    "associations_TN": TN,
-                    "associations_FN": FN}
-            
+            # logging
+            # measuring the p-value of the chosen variable model-based test
+            new_history_row["stopping_metric_chosen_variable"] = current_model.stopping_metric(previous_model, self.config["method"])
             self.history.append(new_history_row)
-        
-        
-        # create selected feature set
-        
-        self.selected_features = selected_features
-        # remove the last selected feature if irrelevant and if not the target itself (always send back one variable at least)
-        if len(self.selected_features)>1:
-            if current_model.stopping_metric(previous_model, self.config["method"]) >= self.config["significance_threshold"]:
-                self.selected_features = self.selected_features[:-1]
-
-    def _forward(self, data, initial_selected=[]):
-        # data: pandas dataframe
-        #      index is the timestamp
-        #      column is the feature name
-        
-        # separated verbosity logging, for clarity.
-        if self.verbosity:
-            return self._forward_verbose(data, initial_selected)
-        
-        
-        # train first model with the list of covariate given.
-        selected_features, candidate_variables, previous_model, current_model, residuals, time_modeltrain_start, time_modeltrain_end = self._initialize_fit(initial_selected, data)
-
-        while self._stopping_criterion(current_model, previous_model, len(selected_features)):
-            # find maximally associative variable to current residuals
-            candidate_variable_list = list(candidate_variables) 
-            if len(candidate_variable_list)==0:  # verify that we still have candidates
-                break
             
-            # compute associations
-            measured_associations = self.association_objects.association(residuals, data[candidate_variable_list])
-            
-            chosen_index = np.argmax(measured_associations)
-            chosen_variable = candidate_variable_list[chosen_index]
-                                  
-            # put the chosen variable in the selected feature set
-            selected_features.append(chosen_variable)
-            candidate_variables.remove(chosen_variable)
-            
-            # compute new model with this variable
-            previous_model = current_model
-            current_model = self._train_model(data, selected_features)
-            # change residuals
-            residuals = current_model.residuals()
 
         # create selected feature set
         self.selected_features = selected_features
+        self.equivalent_variables = equivalent_variables
         # remove the last selected feature if irrelevant and if not the target itself (always send back one variable at least)
         if len(self.selected_features)>1:
             if current_model.stopping_metric(previous_model, self.config["method"]) >= self.config["significance_threshold"]:
-                self.selected_features = self.selected_features[:-1]
-    
-    
-    
-    def fit(self, data, initial_selected=[]):
-        """
-        Given a dataset, compute the forward pass over it.
-        It is possible to give a set of initially selected columns, to start the algorithm forward phase by a non-empty provided set.
+                removed = self.selected_features.pop(-1)
+                if self.config["equivalent_version"] in ["fgb", "fg"]:
+                    self.equivalent_variables.pop(removed)
+ 
         
-        Params:
-            data: pd.DataFrame, containing the forecasted MTS. Must be ordered by timestamp increasing.
-            initial_selected (optional): list of str, the list of columns to use as initial set of the forward phase. Default is empty.
-        """
-    
-        self._forward(data, initial_selected)
-        self.fitted = True 
-        
-    def fit_from_selected_list(self, data, selected_list):
+    def _forward_from_selected_list(self, data, selected_list):
         """
         Given a list of ordered column names, corresponding to a run of the algorithm with the same config except for the selection threshold,
         run the current configuration by using the list to avoid computing the correlations, shortening the process.
@@ -698,38 +631,100 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
             selected_list: list of str, ordered list of the covariates (columns in the dataframe),
                  that have been insered in order by a previous run of the algorithm with same parameters except the stopping thresholds
                  (significance_threshold, max_features, valid_obs_params_ratio).
+        Returns:
+            forward_ended
         """
-        #first step, runing each model and verifying that the stopping criterion does not stop the algorithm before end of given sequence
+        equivalent_variables = self.equivalent_variables
+        forward_ended=False
         
         # initial model
-        selected_features, _, previous_model, current_model, _, _, _ = self._initialize_fit([], data)
+        selected_features, candidate_variables, previous_model, current_model, residuals, _, _ = self._initialize_fit([], data)
         if self.target == selected_list[0]:
             selected_list = selected_list[1:]
         elif self.target in selected_list:
             selected_list.remove(self.target)
-        # loop over variables
+            
+        # first step, runing each model and verifying that the stopping criterion does not stop the algorithm before end of given sequence
         while self._stopping_criterion(current_model, previous_model, len(selected_features)):
-            candidate_variable_list = list(candidate_variables) 
             if len(selected_list)==0:  # verify that we still have candidates in the history
                 break
-            next_chosen = selected_list.pop(0)
-            selected_features.append(next_chosen)
+            chosen_variable = selected_list.pop(0)
+            selected_features.append(chosen_variable)
+            
+            # compute equivalent set and remove equivalent features
+            if self.config["equivalent_version"] in ["fgb", "fg"]:  # version of the algorithm that will require equivalence testing during forward
+                equivalent_variables[chosen_variable] = self._equivalent_set(data, chosen_variable, residuals, candidate_variables)
+                for to_remove in equivalent_variables[chosen_variable]:
+                    candidate_variables.remove(to_remove)
+            
+            # update model for stopping criterion
             previous_model = current_model
             current_model = self._train_model(data, selected_features)
-        # if termination due to stopping criterion, remove the eventual superflous 
-        else:
+            # change residuals
+            residuals = current_model.residuals()
+            
+        else:  # if termination due to stopping criterion, remove the eventual superflous 
             self.selected_features = selected_features
             # remove the last selected feature if irrelevant and if not the target itself (always send back one variable at least)
             if len(self.selected_features)>1:
                 if current_model.stopping_metric(previous_model, self.config["method"]) >= self.config["significance_threshold"]:
-                    self.selected_features = self.selected_features[:-1]
-            self.fitted = True
-            return
+                    removed = self.selected_features.pop(-1)
+                    if self.config["equivalent_version"] in ["fgb", "fg"]:
+                        self.equivalent_variables.pop(removed)
+            forward_ended = True
+         return forward_ended
+
+            
+
+    def _forward(self, data, initial_selected=[]):
+        # data: pandas dataframe
+        #      index is the timestamp
+        #      column is the feature name
         
-        #second step, continuing with the standard algorithm for new selected variable if this point is reached.
-        self._forward(data, initial_selected=selected_list)
-        self.fitted = True
+        # train first model with the list of covariate given.
+        selected_features, candidate_variables, previous_model, current_model, residuals, time_modeltrain_start, time_modeltrain_end = self._initialize_fit(initial_selected, data)
         
+        # keep track of the equivalent covariates to each covariate.
+        equivalent_variables = self.equivalent_variables
+
+        while self._stopping_criterion(current_model, previous_model, len(selected_features)):
+            # find maximally associative variable to current residuals
+            candidate_variable_list = list(candidate_variables) 
+            if len(candidate_variable_list)==0:  # verify that we still have candidates
+                break
+            
+            # compute associations
+            measured_associations = self.association_objects.association(residuals, data[candidate_variable_list])
+            
+            chosen_index = np.argmax(measured_associations)
+            chosen_variable = candidate_variable_list[chosen_index]
+                                  
+            # put the chosen variable in the selected feature set
+            selected_features.append(chosen_variable)
+            candidate_variables.remove(chosen_variable)
+            
+            # compute equivalent set and remove equivalent features
+            if self.config["equivalent_version"] in ["fgb", "fg"]:  # version of the algorithm that will require equivalence testing during forward
+                equivalent_variables[chosen_variable] = self._equivalent_set(data, chosen_variable, residuals, candidate_variables)
+                for to_remove in equivalent_variables[chosen_variable]:
+                    candidate_variables.remove(to_remove)
+            
+            # compute new model with this variable
+            previous_model = current_model
+            current_model = self._train_model(data, selected_features)
+            # change residuals
+            residuals = current_model.residuals()
+
+        # create selected feature set
+        self.selected_features = selected_features
+        self.equivalent_variables = equivalent_variables
+        # remove the last selected feature if irrelevant and if not the target itself (always send back one variable at least)
+        if len(self.selected_features)>1:
+            if current_model.stopping_metric(previous_model, self.config["method"]) >= self.config["significance_threshold"]:
+                removed = self.selected_features.pop(-1)
+                if self.config["equivalent_version"] in ["fgb", "fg"]:
+                    self.equivalent_variables.pop(removed)
+    
     def _backward(self, data):
         """
         Backward pass testing each of the covariate for nonzero coefficient.
@@ -751,15 +746,71 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
                 if metric >= threshold:  # there is no significative difference between the models.
                     self.selected_features.remove(column)
                     selected_set_has_changed = True  # set change flag to true
-    
-    def fit_backward(self, data, initial_selected=[]):
+
+    def _equivalent_search(self, data):
+        # data: pandas dataframe
+        #      index is the timestamp
+        #      column is the feature name
+        
+        # train first model with the list of covariate given.
+        candidate_variables = set(data.columns)
+        for variable in self.selected_features:
+            candidate_variables.remove(variable)
+        
+        equivalent_variables = dict()
+        
+        for index in range(1,len(self.selected_features)):
+            # create the conditioning set model
+            if self.config["equivalent_version"]=="fbg":
+                selected_variables = self.selected_features[:i]
+            elif self.config["equivalent_version"]=="fbc":
+                selected_variables = self.selected_features[:i]+self.selected_features[i+1:]
+            current_model = self._train_model(data, selected_variables)
+            residuals = current_model.residuals()
+            
+            chosen_variable = self.selected_features[i]
+            
+            # compute equivalent set and remove equivalent features
+            equivalent_variables[chosen_variable] = self._equivalent_set(data, chosen_variable, residuals, candidate_variables)
+            for to_remove in equivalent_variables[chosen_variable]:
+                candidate_variables.remove(to_remove)
+        
+        self.equivalent_variables = equivalent_variables
+        
+
+                
+    def fit(self, data, initial_selected=[], check_stopping_on_initial=False):
         """
-        Fit the forward-backward version of the algorithm.
+        Fit the specified version of the algorithm.
+        Then compute the equivalence class of each selected MB member.
         Params:
             data: pd.DataFrame, the MTS ordered by timestamp increasing.
+            initial_selected (optional): list of str, the list of columns to use as initial set of the forward phase. Default is empty.
+            check_stopping_on_initial (optional): boolean, if True, the stopping criterion is applied iteratively to each element of the initial_selected list.
+                If the stopping criterion isn't reached, it continues with a standard forward phase using association to choose variables to include.
+                If it is reached, the result of the forward set is the subset of initial_selected before the stopping criterion is met.
+                If check_stopping_on_initial is False, the algorithm does not check the stopping criterion of the initial_set.
         """
-        self._forward(data, initial_selected=initial_selected)
-        self._backward(data)
+        # reset previous fit
+        self._reset_fit()
+        
+        # forward phase
+        forward_ended = False
+        if check_stopping_on_initial:
+            forward_ended = self._forward_from_selected_list(data, initial_selected)
+        if not forward_ended:
+            if self.verbosity:
+                self._forward_verbose(data, initial_selected)
+            self._forward(data, initial_selected=initial_selected)
+        
+        # backward phase
+        if "b" in self.config["equivalent_version"]:
+            self._backward(data)
+        
+        # post-equivalent search
+        if self.config["equivalent_version"] in ["fbg", "fbc"]:
+            self._equivalent_search(data)
+        
         self.fitted = True
 
 
@@ -780,167 +831,3 @@ class tsGOMP_train_val(tsGOMP_OneAssociation):
         current_model.fit(data_train)
         r=current_model.residuals(data_test, test=True)
         return current_model
-
-class tsGOMP_multiple_subsets(tsGOMP_OneAssociation):
-    """
-    My understanding of what is done in epilogi.
-    
-    For each added variable (which is non-redundant to the selected set), the remaining set is searched for equivalent redundant variables.
-    Any redundant variable is added to the equivalency of the newly added variable.
-    
-    Then we can pick and choose any combination and replacement of the selected set.
-    """
-    def check_config(self):
-        super().check_config()
-        assert "partial_correlation" in self.config
-        assert "partial_correlation.config" in self.config
-        assert "equivalence_threshold" in self.config
-    
-    def _prebuild_association_objects(self):
-        super()._prebuild_association_objects()
-        # add partial correlation object. For now, unique.
-        partial_corr_constructor = self.config["partial_correlation"]
-        partial_correlation_object = partial_corr_constructor(self.config["partial_correlation.config"])
-        self.partial_correlation_objects = partial_correlation_object
-    
-    def _equivalent_set(self, data, chosen_variable, residuals, candidate_variables):
-        """
-        Compute for each candidate variable, if it is equivalent to the chosen variable by partial correlation with residuals.
-        """
-        equivalence_threshold = self.config["equivalence_threshold"]
-        equivalent_list = []
-        for candidate in candidate_variables:
-            candidate_df = data[[candidate]]
-            residuals_df = residuals
-            condition_df = data[[chosen_variable]]
-            pvalue = self.partial_correlation_objects.partial_corr(residuals_df, candidate_df, condition_df)
-            if pvalue > equivalence_threshold:  # no relation found between candidate and residuals given condition
-                pvalue = self.partial_correlation_objects.partial_corr(residuals_df, condition_df, candidate_df)
-                if pvalue > equivalence_threshold:
-                    equivalent_list.append(candidate)
-        return equivalent_list
-            
-
-    def _forward(self, data, initial_selected=[]):
-        # data: pandas dataframe
-        #      index is the timestamp
-        #      column is the feature name
-        
-        # train first model with the list of covariate given.
-        selected_features, candidate_variables, previous_model, current_model, residuals, time_modeltrain_start, time_modeltrain_end = self._initialize_fit(initial_selected, data)
-        
-        # keep track of the equivalent covariates to each covariate.
-        equivalent_variables = dict()
-
-        while self._stopping_criterion(current_model, previous_model, len(selected_features)):
-            # find maximally associative variable to current residuals
-            candidate_variable_list = list(candidate_variables) 
-            if len(candidate_variable_list)==0:  # verify that we still have candidates
-                break
-            
-            # compute associations
-            measured_associations = self.association_objects.association(residuals, data[candidate_variable_list])
-            
-            chosen_index = np.argmax(measured_associations)
-            chosen_variable = candidate_variable_list[chosen_index]
-                                  
-            # put the chosen variable in the selected feature set
-            selected_features.append(chosen_variable)
-            candidate_variables.remove(chosen_variable)
-            
-            # compute equivalent set and remove equivalent features
-            equivalent_variables[chosen_variable] = self._equivalent_set(data, chosen_variable, residuals, candidate_variables)
-            for to_remove in equivalent_variables[chosen_variable]:
-                candidate_variables.remove(to_remove)
-            
-            # compute new model with this variable
-            previous_model = current_model
-            current_model = self._train_model(data, selected_features)
-            # change residuals
-            residuals = current_model.residuals()
-
-        # create selected feature set
-        self.selected_features = selected_features
-        self.equivalent_variables = equivalent_variables
-        # remove the last selected feature if irrelevant and if not the target itself (always send back one variable at least)
-        if len(self.selected_features)>1:
-            if current_model.stopping_metric(previous_model, self.config["method"]) >= self.config["significance_threshold"]:
-                removed = self.selected_features.pop(-1)
-                self.equivalent_variables = {x:self.equivalent_variables[x] for x in self.equivalent_variables if x!=removed}
-    
-class tsGOMP_multiple_subsets_backward(tsGOMP_OneAssociation):
-    """
-    Testing equivalences after the forward backward phase
-    """
-    def check_config(self):
-        super().check_config()
-        assert "partial_correlation" in self.config
-        assert "partial_correlation.config" in self.config
-        assert "equivalence_threshold" in self.config
-    
-    def _prebuild_association_objects(self):
-        super()._prebuild_association_objects()
-        # add partial correlation object. For now, unique.
-        partial_corr_constructor = self.config["partial_correlation"]
-        partial_correlation_object = partial_corr_constructor(self.config["partial_correlation.config"])
-        self.partial_correlation_objects = partial_correlation_object
-    
-    def _equivalent_set(self, data, chosen_variable, residuals, candidate_variables):
-        """
-        Compute for each candidate variable, if it is equivalent to the chosen variable by partial correlation with residuals.
-        """
-        equivalence_threshold = self.config["equivalence_threshold"]
-        equivalent_list = []
-        for candidate in candidate_variables:
-            candidate_df = data[[candidate]]
-            residuals_df = residuals
-            condition_df = data[[chosen_variable]]
-            pvalue = self.partial_correlation_objects.partial_corr(residuals_df, candidate_df, condition_df)
-            if pvalue > equivalence_threshold:  # no relation found between candidate and residuals given condition
-                pvalue = self.partial_correlation_objects.partial_corr(residuals_df, condition_df, candidate_df)
-                if pvalue > equivalence_threshold:
-                    equivalent_list.append(candidate)
-        return equivalent_list
-            
-
-    def _equivalent_search(self, data):
-        # data: pandas dataframe
-        #      index is the timestamp
-        #      column is the feature name
-        
-        # train first model with the list of covariate given.
-        candidate_variables = set(data.columns)
-        for variable in self.selected_features:
-            candidate_variables.remove(variable)
-        
-        equivalent_variables = dict()
-        
-        for index in range(1,len(self.selected_features)):
-            # create the conditioning set model
-            selected_variables = self.selected_features[:i]
-            current_model = self._train_model(data, selected_variables)
-            residuals = current_model.residuals()
-            
-            chosen_variable = self.selected_features[i]
-            
-            # compute equivalent set and remove equivalent features
-            equivalent_variables[chosen_variable] = self._equivalent_set(data, chosen_variable, residuals, candidate_variables)
-            for to_remove in equivalent_variables[chosen_variable]:
-                candidate_variables.remove(to_remove)
-        
-        self.equivalent_variables = equivalent_variables
-        
-                
-                
-    def fit_backward(self, data, initial_selected=[]):
-        """
-        Fit the forward-backward version of the algorithm.
-        Then compute the equivalence class of each selected MB member.
-        Params:
-            data: pd.DataFrame, the MTS ordered by timestamp increasing.
-        """
-        self._forward(data, initial_selected=initial_selected)
-        self._backward(data)
-        self._equivalent_search(data)
-        
-        self.fitted = True
