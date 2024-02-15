@@ -22,7 +22,7 @@ from baselines.feature_selection import MaximalSelectedError
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 
-def fs_cls_pair_already_optimized(dataset, fs_name, cls_name, filename, target):
+def fs_cls_pair_already_optimized(dataset, fs_name, cls_name, filename, target, experiment_identifier):
     params_dir = "./results/optuna/params/"
     params_filename = dataset+"_"+os.path.splitext(filename)[0]+"_"+target+".csv"
     if not os.path.isfile(params_dir+params_filename):
@@ -32,6 +32,12 @@ def fs_cls_pair_already_optimized(dataset, fs_name, cls_name, filename, target):
     if len(df_params)==0:
         return False
     df_params = df_params[df_params["CLS.NAME"]==cls_name]
+    if len(df_params)==0:
+        return False
+    # add an experiment identifier. This allows for different optimisations of same targets, with different HP grid.
+    if "experiment_identifier" not in df_params.columns:
+        return False
+    df_params = df_params[df_params["experiment_identifier"]==experiment_identifier]
     if len(df_params)==0:
         return False
     return True
@@ -241,7 +247,7 @@ def generate_optuna_objective_function(fs_name, cls_name, dataset_setup, objecti
     
     return df_bootstrap[objective].mean()
 
-def full_experiment(dataset, fs_name, cls_name, seed=0):
+def full_experiment(dataset, fs_name, cls_name, experiment_identifier, seed=0):
     ex_datasetup = setup_dataset(dataset, None, None)["DATASET"]
     data_dir = ex_datasetup["PATH"]
     target_extraction = ex_datasetup["TARGET_CHOICE"]
@@ -275,7 +281,7 @@ def full_experiment(dataset, fs_name, cls_name, seed=0):
             count+=1
             
             # check if results for the given target of the given file have already been computed
-            if fs_cls_pair_already_optimized(dataset, fs_name, cls_name, filename, target):
+            if fs_cls_pair_already_optimized(dataset, fs_name, cls_name, filename, target, experiment_identifier):
                 continue
             
             if first_evaluation_flag: # record time on first iteration
@@ -303,6 +309,9 @@ def full_experiment(dataset, fs_name, cls_name, seed=0):
             results_df = pd.concat(results["results"])
             #bootstrap_df = pd.concat(results["bootstrap"])
             
+            # the following line identifies each experiment loop, so that the resume operation can occur
+            params_df["experiment_identifier"] = experiment_identifier
+            
             save_append(params_df,"./results/optuna/params/"+dataset+"_"+filename_xt+"_"+target+".csv")
             save_append(results_df,"./results/optuna/test_stats/"+dataset+"_"+filename_xt+"_"+target+".csv")
             #save_append(bootstrap_df,"./results/optuna_bootstrap/bootstrap_stats/"+dataset+"_"+filename_xt+"_"+target+".csv")
@@ -317,9 +326,9 @@ def full_experiment(dataset, fs_name, cls_name, seed=0):
 
 
 if __name__=="__main__":
-    _, data, fs, model = sys.argv
+    _, data, fs, model, experiment_identifier = sys.argv
     print(data)
-    full_experiment(data, fs, model)
+    full_experiment(data, fs, model, experiment_identifier)
 
 
 
