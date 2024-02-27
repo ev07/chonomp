@@ -1,6 +1,6 @@
 import numpy as np
 
-from tsGOMP import tsGOMP_OneAssociation, tsGOMP_train_val, tsGOMP_multiple_subsets
+from tsGOMP import tsGOMP_OneAssociation, tsGOMP_train_val
 from associations import PearsonMultivariate, SpearmanMultivariate, LinearPartialCorrelation, ModelBasedPartialCorrelation
 from models import ARDLModel, SVRModel
 
@@ -201,7 +201,7 @@ class ChronOMP(FeatureSelector):
         hp["order"] = hp["lags"]
         hp["trend"] = trial.suggest_categorical("trend",["n","t","c", "ct"])
         hp["association"] = trial.suggest_categorical("association",["Pearson","Spearman"])
-        hp["significance_threshold"] = trial.suggest_float("significance_threshold", 0.00001, 0.1, log=True)
+        hp["significance_threshold"] = trial.suggest_float("significance_threshold", 1e-20, 0.1, log=True)
         hp["method"] = trial.suggest_categorical("method",["f-test", "wald-test", "lr-test"])
         hp["max_features"] = trial.suggest_int("max_features", 5, 50, log=True)
         hp["valid_obs_param_ratio"] = trial.suggest_categorical("valid_obs_param_ratio",[1., 5., 10.])
@@ -233,7 +233,7 @@ class BackwardChronOMP(ChronOMP):
         return config
     def _generate_optuna_parameters(trial):
         hp = ChronOMP._generate_optuna_parameters(trial)
-        hp["significance_threshold_backward"] = trial.suggest_float("significance_threshold", 0.00001, 0.1, log=True)
+        hp["significance_threshold_backward"] = trial.suggest_float("significance_threshold_backward", 0.00001, 0.1, log=True)
         hp["method_backward"] = trial.suggest_categorical("method",["f-test", "wald-test", "lr-test"])
         return hp
     def _generate_optuna_search_space():
@@ -250,7 +250,7 @@ class MultiSetChronOMP(ChronOMP):
         self.target = target
         self.equivalent_version = version
         config = self._config_init()
-        self.instance = tsGOMP_multiple_subsets(config, self.target)
+        self.instance = tsGOMP_OneAssociation(config, self.target, verbosity=verbosity)
         
     def _config_init(self):
         association_constructor = {"Pearson":PearsonMultivariate, "Spearman": SpearmanMultivariate}[self.config["association"]]

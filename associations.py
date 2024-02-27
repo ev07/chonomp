@@ -370,8 +370,8 @@ class LinearPartialCorrelation():
     
     def _prepare_data(self, condition_df, residuals_df, candidate_df):
         """
-        Pingouin partial_corr asks for the data in form of a dataframe.
-        This function formats the lags of condition, candidate and joins them with residuals.
+        Pingouin partial_corr asks for the data in form of a dataframe where rows are observation vectors.
+        This function formats the lags of condition, candidate and joins them with residuals in a single vector.
         """
         # remove nans eventually occuring in residuals
         residuals_df = residuals_df[~residuals_df.isnull().any(axis=1)]
