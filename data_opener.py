@@ -130,6 +130,9 @@ def open_dataset_and_ground_truth(dataset_name: str,
          dataset_name=="monash/solar":
         df = pd.read_csv(rootdir + "/data/" + dataset_name + "/" + filename)
         df.columns = [str(i) for i in df.columns]
+    elif dataset_name=="equivalences_datasets/size_4_gaussian":
+        df = pd.read_csv(rootdir + "/data/" + dataset_name + "/" + filename)
+        df.columns = [str(i) for i in df.columns]
     else:
         raise Exception("Dataset specified in config file is not implemented")
         
@@ -289,6 +292,13 @@ def open_dataset_and_ground_truth(dataset_name: str,
         return df, var_names, None, None
     elif dataset_name in ["monash/solar", "monash/electricity", "monash/traffic", "monash/weather"]:
         return df, var_names, None, None
+    
+    
+    # equivalence datasets (no GT due to nonunique MB and no representation for now)
+    elif dataset_name=="equivalences_datasets/size_4_gaussian":
+        var_names = ["T"]
+        return df, var_names, None, None
+    
     else:
         raise Exception("Dataset specified in argument is not implemented")
     
