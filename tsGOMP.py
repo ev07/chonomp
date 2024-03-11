@@ -427,9 +427,9 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
         
         verbosity set at 1 keeps track of the algorithm whole history.
         """
+        self.partial_correlation_objects = None
         super().__init__(config,target,verbosity)
         self.equivalent_variables=dict()
-        self.partial_correlation_objects = None
     
     def _reset_fit(self):
         self.selected_features=[]
@@ -470,6 +470,7 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
             partial_corr_constructor = self.config["partial_correlation"]
             partial_correlation_object = partial_corr_constructor(self.config["partial_correlation.config"])
             self.partial_correlation_objects = partial_correlation_object
+
     
     
     def _stopping_criterion(self, current_model, previous_model, len_selected_features):
@@ -538,11 +539,15 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
             candidate_df = data[[candidate]]
             residuals_df = residuals
             condition_df = data[[chosen_variable]]
+            
             pvalue = self.partial_correlation_objects.partial_corr(residuals_df, candidate_df, condition_df)
+            #print(candidate,chosen_variable,pvalue)
             if pvalue > equivalence_threshold:  # no relation found between candidate and residuals given condition
                 pvalue = self.partial_correlation_objects.partial_corr(residuals_df, condition_df, candidate_df)
+                #print("reverse",candidate,chosen_variable,pvalue)
                 if pvalue > equivalence_threshold:
                     equivalent_list.append(candidate)
+                    
         return equivalent_list
 
 
@@ -672,7 +677,7 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
                     if self.config["equivalent_version"] in ["fgb", "fg"]:
                         self.equivalent_variables.pop(removed)
             forward_ended = True
-         return forward_ended
+        return forward_ended
 
             
 
@@ -762,13 +767,24 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
         for index in range(1,len(self.selected_features)):
             # create the conditioning set model
             if self.config["equivalent_version"]=="fbg":
-                selected_variables = self.selected_features[:i]
+                selected_variables = self.selected_features[:index]
             elif self.config["equivalent_version"]=="fbc":
-                selected_variables = self.selected_features[:i]+self.selected_features[i+1:]
+                selected_variables = self.selected_features[:index]+self.selected_features[index+1:]
+                
+            #print("model selected features", selected_variables)
             current_model = self._train_model(data, selected_variables)
             residuals = current_model.residuals()
+            #print("Entering ablation")
+            #abl_data = data.copy()
+            #abl_data[self.target]=residuals
+            #abl_model = self._train_model(abl_data, [self.selected_features[index],self.target])
+            #print("restricted residual model llf:",abl_model.llh())
+            #abl_data = data[[self.selected_features[index],self.target]]
+            #abl_model = self._train_model(abl_data, [self.selected_features[index],self.target])
+            #print("restricted non-residual model llf:",abl_model.llh())
             
-            chosen_variable = self.selected_features[i]
+            
+            chosen_variable = self.selected_features[index]
             
             # compute equivalent set and remove equivalent features
             equivalent_variables[chosen_variable] = self._equivalent_set(data, chosen_variable, residuals, candidate_variables)
@@ -801,7 +817,8 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
         if not forward_ended:
             if self.verbosity:
                 self._forward_verbose(data, initial_selected)
-            self._forward(data, initial_selected=initial_selected)
+            else:
+                self._forward(data, initial_selected=initial_selected)
         
         # backward phase
         if "b" in self.config["equivalent_version"]:

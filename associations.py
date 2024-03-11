@@ -433,6 +433,8 @@ class ModelBasedPartialCorrelation(LinearPartialCorrelation):
         restricted_model = OLS(data[residname], data[cond_names], missing="drop").fit()
         full_model = OLS(data[residname], data[cond_names.tolist()+cand_names.tolist()], missing="drop").fit()
         lr_stat, p_value, df_diff = full_model.compare_lr_test(restricted_model, large_sample=self.config["large_sample"])
+        #print("likelihoods (F, R)",full_model.llf, restricted_model.llf)
+        #print("aics (F, R)",full_model.aic, restricted_model.aic)
         return p_value
         
         
