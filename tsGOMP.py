@@ -417,6 +417,11 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
         Thus, the target variable is by default in the selected set.
         
         config contains:
+         - equivalent_version: ["f","fb","fg","fbg","fbc"] the version of the algorithm to apply.
+             "f" is a simple forward, "fb" a forward backward, without equivalent set discovery.
+             "fg" is a forward phase with equivalent set during forward phase.
+             "fbg" is a forward backward phase before applying a greedy equivalent search
+             "fbc" is a forward backward phase before applying a comprehensive (theory-sound) search.
          - method: define how the stopping criterion will be computed if applicable.
          - significance_threshold: define the difference in model significance to stop.
          - max_features: the maximal number of selected features
@@ -424,7 +429,7 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
          - association.config: parameters to give to the association constructor
          - model: the model constructor
          - model.config: the parameters to give to the model constructor.
-        
+        config might optionally contains, depending on 
         verbosity set at 1 keeps track of the algorithm whole history.
         """
         self.partial_correlation_objects = None
@@ -458,6 +463,7 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
             assert "partial_correlation" in self.config
             assert "partial_correlation.config" in self.config
             assert "equivalence_threshold" in self.config
+            assert "equivalence_method" in self.config
     
     def _prebuild_association_objects(self):
         "Initialize association object to respect the main algorithm structure"
@@ -529,9 +535,16 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
         return initial_selected, candidate_variables, previous_model, current_model, residuals, time_modeltrain_start, time_modeltrain_end
 
 
-    def _equivalent_set(self, data, chosen_variable, residuals, candidate_variables):
+    def _equivalent_set_greedy(self, data, chosen_variable, residuals, candidate_variables):
         """
         Compute for each candidate variable, if it is equivalent to the chosen variable by partial correlation with residuals.
+        This version tests for each C in candidate_variables:
+          - C indep residuals | chosen_variable
+          - chosen_variable indep residuals | C
+        If both hold, C is considered equivalent to chosen_variable.
+        
+        Tests conducted with linear models and the likelihood ratio test.
+            X indep R | Y is tested by llr(m1,m2), m1<- R~Y, m2<- R~Y,X
         """
         equivalence_threshold = self.config["equivalence_threshold"]
         equivalent_list = []
@@ -544,10 +557,46 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
             #print(candidate,chosen_variable,pvalue)
             if pvalue > equivalence_threshold:  # no relation found between candidate and residuals given condition
                 pvalue = self.partial_correlation_objects.partial_corr(residuals_df, condition_df, candidate_df)
-                #print("reverse",candidate,chosen_variable,pvalue)
-                if pvalue > equivalence_threshold:
+                if pvalue > equivalence_threshold:  # no relation found between condition and residuals given candidate
                     equivalent_list.append(candidate)
                     
+        return equivalent_list
+    
+    def _equivalent_set_comprehensive_resid(self, data, chosen_variable, residuals, candidate_variables):
+        """
+        Compute for each candidate variable, if it is equivalent to the chosen variable by partial correlation with residuals.
+        
+        Tests conducted with linear models and the likelihood ratio test.
+            X indep R | Y is tested by llr(m1,m2), m1<- R~Y, m2<- R~Y,X
+        """
+        equivalence_threshold = self.config["equivalence_threshold"]
+        equivalent_list = []
+        for candidate in candidate_variables:
+            candidate_df = data[[candidate]]
+            residuals_df = residuals
+            condition_df = data[[chosen_variable]]
+            pvalue = self.partial_correlation_objects.partial_corr(residuals_df, candidate_df, condition_df)
+            if pvalue > equivalence_threshold:  # no relation found between candidate and residuals given condition
+                equivalent_list.append(candidate)
+        return equivalent_list
+    
+    def _equivalent_set_comprehensive_model(self, data, chosen_variable, candidate_variables, conditioning_set):
+        """
+        Compute for each candidate variable, if it is equivalent to the chosen variable by granger causality test.
+        
+        Tests conducted with the provided model and test metric:
+            X indep T | C, Z is tested by stopping_metric(m1,m2), m1<- T~C,Z, m2<- T~X,C,Z
+            X=chosen_variable, C\in candidate_variables, Z=conditioning_set, T=self.target
+        """
+        equivalence_threshold = self.config["equivalence_threshold"]
+        equivalence_method = self.config["equivalence_method"]
+        equivalent_list = []
+        for candidate in candidate_variables:
+            restricted_model = self._train_model(data, conditioning_set + [candidate])
+            full_model = self._train_model(data, conditioning_set + [candidate, chosen_variable])
+            pvalue = full_model.stopping_metric(restricted_model, equivalence_method) # low p-value indicates models are different
+            if pvalue > equivalence_threshold:  # no relation found between X and T given Y,Z
+                equivalent_list.append(candidate)
         return equivalent_list
 
 
@@ -592,7 +641,7 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
             # compute equivalent set and remove equivalent features
             time_equivset_start = time.time()
             if self.config["equivalent_version"] in ["fgb", "fg"]:  # version of the algorithm that will require equivalence testing during forward
-                equivalent_variables[chosen_variable] = self._equivalent_set(data, chosen_variable, residuals, candidate_variables)
+                equivalent_variables[chosen_variable] = self._equivalent_set_greedy(data, chosen_variable, residuals, candidate_variables)
                 for to_remove in equivalent_variables[chosen_variable]:
                     candidate_variables.remove(to_remove)
             time_equivset_end = time.time()
@@ -658,7 +707,7 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
             
             # compute equivalent set and remove equivalent features
             if self.config["equivalent_version"] in ["fgb", "fg"]:  # version of the algorithm that will require equivalence testing during forward
-                equivalent_variables[chosen_variable] = self._equivalent_set(data, chosen_variable, residuals, candidate_variables)
+                equivalent_variables[chosen_variable] = self._equivalent_set_greedy(data, chosen_variable, residuals, candidate_variables)
                 for to_remove in equivalent_variables[chosen_variable]:
                     candidate_variables.remove(to_remove)
             
@@ -710,7 +759,7 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
             
             # compute equivalent set and remove equivalent features
             if self.config["equivalent_version"] in ["fgb", "fg"]:  # version of the algorithm that will require equivalence testing during forward
-                equivalent_variables[chosen_variable] = self._equivalent_set(data, chosen_variable, residuals, candidate_variables)
+                equivalent_variables[chosen_variable] = self._equivalent_set_greedy(data, chosen_variable, residuals, candidate_variables)
                 for to_remove in equivalent_variables[chosen_variable]:
                     candidate_variables.remove(to_remove)
             
@@ -770,8 +819,7 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
                 selected_variables = self.selected_features[:index]
             elif self.config["equivalent_version"]=="fbc":
                 selected_variables = self.selected_features[:index]+self.selected_features[index+1:]
-                
-            #print("model selected features", selected_variables)
+
             current_model = self._train_model(data, selected_variables)
             residuals = current_model.residuals()
             #print("Entering ablation")
@@ -783,11 +831,16 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
             #abl_model = self._train_model(abl_data, [self.selected_features[index],self.target])
             #print("restricted non-residual model llf:",abl_model.llh())
             
-            
+
             chosen_variable = self.selected_features[index]
             
-            # compute equivalent set and remove equivalent features
-            equivalent_variables[chosen_variable] = self._equivalent_set(data, chosen_variable, residuals, candidate_variables)
+            # compute equivalent set 
+            if self.config["equivalent_version"]=="fbg":
+                equivalent_variables[chosen_variable] = self._equivalent_set_greedy(data, chosen_variable, residuals, candidate_variables)
+            elif self.config["equivalent_version"]=="fbc":  # different function since C indep X1...Xn verified due to MB property
+                # also, here, do the proper test with full model computation, not residual use.
+                equivalent_variables[chosen_variable] = self._equivalent_set_comprehensive_model(data, chosen_variable, candidate_variables, selected_variables)
+            # remove equivalent variables
             for to_remove in equivalent_variables[chosen_variable]:
                 candidate_variables.remove(to_remove)
         
