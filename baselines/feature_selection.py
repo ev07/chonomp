@@ -244,10 +244,10 @@ class BackwardChronOMP(ChronOMP):
         return hp
 
 class MultiSetChronOMP(ChronOMP):
-    def __init__(self, config, target, equivalent_version="fg"):
+    def __init__(self, config, target, equivalent_version="fg",verbosity=0):
         self.config=config
         self.target = target
-        self.equivalent_version = version
+        self.equivalent_version = equivalent_version
         config = self._config_init()
         self.instance = tsGOMP_OneAssociation(config, self.target, verbosity=verbosity)
         
