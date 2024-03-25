@@ -194,7 +194,23 @@ def setup_dataset(dataset_name, filename, target):
             "TARGET_CHOICE": "given",
             "MAXIMUM_NUMBER_TARGETS": None}
             }
-
+    elif dataset_name == "NoisyVAR_500":
+        config = {"DATASET":{**config["DATASET"],
+            "PATH": "equivalence_datasets/NoisyVAR",
+            "CAUSES": "parents",
+            "TARGET_CHOICE": "given",
+            "MAXIMUM_NUMBER_TARGETS": 1}
+            }
+        config["DATASET"]["HOLDOUT_RATIO"] = 0.857143
+        
+    elif dataset_name == "NoisyVAR_2500":
+        config = {"DATASET":{**config["DATASET"],
+            "PATH": "equivalence_datasets/NoisyVAR",
+            "CAUSES": "parents",
+            "TARGET_CHOICE": "given",
+            "MAXIMUM_NUMBER_TARGETS": 1}
+            }
+        config["DATASET"]["HOLDOUT_RATIO"] = 0.2858
     return config
 
 
