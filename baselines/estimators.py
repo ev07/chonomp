@@ -215,7 +215,7 @@ def generate_optuna_parameters(name, trial):
 def generate_optuna_search_space(name):
     hp = dict()
     if name == "ARDLModel":
-        hp["lags"] = [20]
+        hp["lags"] = [10]
         hp["trend"] = ["n","ct"]
     elif name == "SVRModel":
         hp["lags"] = [20]

@@ -238,10 +238,11 @@ class BackwardChronOMP(ChronOMP):
         return hp
     def _generate_optuna_search_space():
         hp = ChronOMP._generate_optuna_search_space()
+        hp["lags"] = [10]
         hp["method"] = ["f-test"]
-        hp["significance_threshold"] = [1e-20, 1e-10, 1e-5, 1e-4]
-        hp["significance_threshold_backward"] = [0.00001, 0.0001, 0.001, 0.01]
-        hp["method_backward"] = ["wald-test"]
+        hp["significance_threshold"] = [1e-20, 1e-10, 1e-5, 1e-2]
+        hp["significance_threshold_backward"] = [1e-20, 1e-10, 1e-5, 1e-2]
+        hp["method_backward"] = ["lr-test"]
         return hp
 
 class MultiSetChronOMP(ChronOMP):
