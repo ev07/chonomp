@@ -366,6 +366,15 @@ class SpearmanMultivariate(PearsonMultivariate):
             return np.mean(coefficients, axis=-1)
 
 
+##########
+#
+#   Approximate (residual based) partial correlation test for the residuals.
+#
+##########
+
+
+
+
 class LinearPartialCorrelation():
     def __init__(self, config):
         self.config = config
