@@ -11,6 +11,8 @@ from sklearn.feature_selection import SelectFromModel
           
 from statsmodels.tsa.vector_ar.var_model import VAR
 
+import group_lasso
+
 #from baselines.SyPI import SyPI_method
 
 #  Error class for the SelectFromModel instance, where giving a maximal number of selected variables above the size of the data is impossible.
@@ -60,7 +62,7 @@ class FeatureSelector():
         """
         pass
 
-    def prepare_data_vectorize(self, data, lags):
+    def prepare_data_vectorize(self, data, lags, groups=False):
         """
         From a pandas dataframe with time in lines and attributes in columns, 
         create a windowed version where each (variable, lag) is a column and lag<lags.
@@ -68,10 +70,12 @@ class FeatureSelector():
         Params:
             data: pd.DataFrame, the pandas dataframe of the data
             lags: int, the number of lags in the window (window size)
+            groups: bool, if true, returns the groups.
         Returns:
             X: np.array, the new predictor matrix
             y: np.array, the new predicted value vector
             indexes: the original indexes of the predicted value (on which we can use pd.DataFrame(y, index=indexes))
+            (optional) groups: np.array, the index of each column of data corresponding to each column of X
         """
         self.lags = lags
         # used to vectorize several timesteps in a dimension 1 vector.
@@ -80,6 +84,9 @@ class FeatureSelector():
         y = y.values
         window_X = [data.values[i:i+self.lags].reshape((-1,)) for i in range(len(data)-self.lags)]
         X = np.array(window_X)
+        if groups: 
+            group_names = list(range(len(data.columns)))*self.lags
+            return X, y, indexes, group_names
         return X, y, indexes
 
     def vector_mask_to_columns(self, mask, data):
@@ -461,7 +468,56 @@ class VectorLassoLars(FeatureSelector):
         return hp
 
 
+##################################################################
+#                                                                #
+#                       Grouped Lasso                            #
+#                                                                #
+##################################################################
 
+class GroupLasso(FeatureSelector):
+    selection_mode = "variable"
+    
+     def __init__(self, config, target):
+        super().__init__(config,target)
+    
+    def _model_init(self, groups):
+        self.model = group_lasso.GroupLasso(groups, **self.config["model_config"],
+                                            supress_warning=True)
+        
+    def fit(data):
+        X, y, _, groups = self.prepare_data_vectorize(data, self.config["lags"],groups=True)
+        self._model_init(groups)
+        self.model.fit(X,y)
+        mask = self.model.sparsity_mask
+        selected = self.vector_mask_to_columns(mask, data)
+        return selected
+    
+    def get_selected_features(self):
+        return list(self.model.chosen_groups_)
+    
+    def _complete_config_from_parameters(hyperparameters):
+        config = {"lags": hyperparameters.get("lags", 10),
+                  "model_config":{
+                      "group_reg": hyperparameters.get("group_reg", 0.001),
+                      "l1_reg": hyperparameters.get("l1_reg", 0.001),
+                      "n_iter": hyperparameters.get("n_iter", 1000),
+                      "tol": hyperparameters.get("tol", 1e-5)
+                      }
+                 }
+        return config
+    def _generate_optuna_parameters(trial):
+        hp = dict()
+        hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
+        hp["group_reg"] = trial.suggest_float("group_reg",1e-20,1,log=True)
+        hp["l1_reg"] = trial.suggest_float("l1_reg",1e-20,1,log=True)
+        return hp
+
+    def _generate_optuna_search_space():
+        hp = dict()
+        hp["lags"] = [10]
+        hp["group_reg"] = [1e-20,1e-10,1e-5,5*1e-4,1e-2,5*1e-1] 
+        hp["l1_reg"] = [1e-20,1e-10,1e-5,5*1e-4,1e-2,5*1e-1]
+        return hp
 
 ##################################################################
 #                                                                #
