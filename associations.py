@@ -2,11 +2,13 @@ from scipy.stats import pearsonr, spearmanr, beta, rankdata
 from scipy.special import stdtr
 from statsmodels.regression.linear_model import OLS
 import pingouin
+import bottleneck
 
 #from mass_ts import mass2
 
 import numpy as np
 import pandas as pd
+import time
 
 ##
 #
@@ -217,29 +219,33 @@ def mass2_modified(ts, query):
     m = len(query)
     x = ts.T
     y = query
+    
 
     meany = np.mean(y)
     sigmay = np.std(y)
-
+    
     meanx = moving_average(x, m)
-    meanx = np.append(np.ones([v, m - 1]), meanx, axis=-1)
-
-    sigmax = moving_std(x, m)
-    sigmax = np.append(np.zeros([v, m - 1]), sigmax, axis=-1)
+    
+    # moving_std was inefficient, replaced by bottleneck library move_std.
+    #sigmax = moving_std(x, m)
+    sigmax = bottleneck.move_std(x,m)[:,m-1:]
 
     y = np.append(np.flip(y), np.zeros([1, n - m]))
-
+    
+    # fft computation is currently the major bottleneck of the whole ChronoEpilogi algorithm.
     X = np.fft.fft(x,axis=-1)
     Y = np.fft.fft(y,axis=-1)
     Z = X * Y
     z = np.fft.ifft(Z,axis=-1)
-
-    dist = 2 * (m - (z[:,m - 1:n] - m * meanx[:,m - 1:n] * meany) /
-                (sigmax[:,m - 1:n] * sigmay))
+    
+    dist = 2 * (m - (z[:,m - 1:n] - m * meanx * meany) /
+                (sigmax * sigmay))
+                
 
     correlation = 1 - np.absolute(dist) / (2 * m)
 
     return correlation
+
 
 
 class PearsonMultivariate(Association):
@@ -278,7 +284,7 @@ class PearsonMultivariate(Association):
         #adjust variable timestamps to residuals since learning process lags will have reduced the length of the series
         variables_ilocs = [i for i in range(variables_df.shape[0]) if (variables_df.index[i] in residuals_indexes)]
         #remove the first <lags> elements of the residuals for mass2_modified computation.
-        residuals_ilocs = [i for i in range(residuals_df.shape[0])]
+        residuals_ilocs = list(range(residuals_df.shape[0]))
         residuals_ilocs = residuals_ilocs[self.config["lags"]:]
         
         residuals = residuals_df.iloc[residuals_ilocs].values.reshape((-1,))
@@ -286,8 +292,10 @@ class PearsonMultivariate(Association):
         return residuals, variables
 
     def association(self, residuals_df, variables_df):
+    
         residuals, variables = self._select_correct_rows(residuals_df, variables_df)
 
+        # mass2 is the computation bottleneck due to fft.
         coefficients = mass2_modified(variables, residuals)  # compute correlations
 
         if self.config["return_type"] == "p-value":

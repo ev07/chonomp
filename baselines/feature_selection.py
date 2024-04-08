@@ -210,7 +210,7 @@ class ChronOMP(FeatureSelector):
     def _generate_optuna_search_space():
         hp = dict()
         hp["model"] = ["ARDL"]
-        hp["lags"] = [2]
+        hp["lags"] = [50]
         hp["trend"] = ["n","ct"]
         hp["association"] = ["Pearson"]#,"Spearman"]
         hp["significance_threshold"] = [1e-20, 1e-10, 1e-5, 1e-4]

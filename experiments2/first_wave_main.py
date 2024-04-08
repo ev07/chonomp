@@ -162,7 +162,7 @@ def setup_dataset(dataset_name, filename, target):
             "MAXIMUM_NUMBER_TARGETS": 10}
             }
         config["DATASET"]["HOLDOUT_RATIO"] = 0.9
-    elif dataset_name == "electricity":
+    elif dataset_name in ["electricity", "electricity_long"]:
         config = {"DATASET":{**config["DATASET"],
             "PATH": "monash/electricity",
             "CAUSES": "parents",
@@ -170,6 +170,8 @@ def setup_dataset(dataset_name, filename, target):
             "MAXIMUM_NUMBER_TARGETS": 10}
             }
         config["DATASET"]["HOLDOUT_RATIO"] = 0.9
+        if dataset_name == "electricity_long":
+            config["DATASET"]["HOLDOUT_RATIO"] = 0.3
     elif dataset_name == "solar":
         config = {"DATASET":{**config["DATASET"],
             "PATH": "monash/solar",
@@ -326,6 +328,7 @@ def full_experiment(dataset, fs_name, cls_name, experiment_identifier, seed=0):
             study = optuna.create_study(sampler=GridSampler(space))
             study.optimize(objective, n_trials=studylength)
             
+            
             #results contains all the training information from the trials
             filename_xt = os.path.splitext(filename)[0]
             #print(results)
@@ -345,8 +348,8 @@ def full_experiment(dataset, fs_name, cls_name, experiment_identifier, seed=0):
                 t = time.time()-time_begin
                 print("\t\tOne variable took",t ,"seconds.")
                 print("\t\tEstimated time for whole pipeline:",len(target_set)*len(filelist)*t, "seconds")
-            if count>20:
-                return
+            #if count>20:
+            #    return
 
 
 if __name__=="__main__":
