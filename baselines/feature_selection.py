@@ -477,23 +477,25 @@ class VectorLassoLars(FeatureSelector):
 class GroupLasso(FeatureSelector):
     selection_mode = "variable"
     
-     def __init__(self, config, target):
+    def __init__(self, config, target):
         super().__init__(config,target)
+        self.selected=None
     
     def _model_init(self, groups):
         self.model = group_lasso.GroupLasso(groups, **self.config["model_config"],
                                             supress_warning=True)
         
-    def fit(data):
+    def fit(self, data):
         X, y, _, groups = self.prepare_data_vectorize(data, self.config["lags"],groups=True)
         self._model_init(groups)
         self.model.fit(X,y)
-        mask = self.model.sparsity_mask
+        mask = self.model.sparsity_mask_
         selected = self.vector_mask_to_columns(mask, data)
+        self.selected = selected
         return selected
     
     def get_selected_features(self):
-        return list(self.model.chosen_groups_)
+        return self.selected
     
     def _complete_config_from_parameters(hyperparameters):
         config = {"lags": hyperparameters.get("lags", 10),
@@ -763,6 +765,8 @@ def complete_config_from_parameters(name, hyperparameters):
         config = VectorLassoLars._complete_config_from_parameters(hyperparameters)
     elif name == "SyPI":
         config = SyPI._complete_config_from_parameters(hyperparameters)
+    elif name == "GroupLasso":
+        config = GroupLasso._complete_config_from_parameters(hyperparameters)
     return config
     
     
@@ -782,6 +786,8 @@ def generate_optuna_parameters(name, trial):
         hp = VectorLassoLars._generate_optuna_parameters(trial)
     elif name == "SyPI":
         hp = SyPI._generate_optuna_parameters(trial)
+    elif name == "GroupLasso":
+        hp = GroupLasso._generate_optuna_parameters(trial)
     return hp
 
     
@@ -801,6 +807,8 @@ def generate_optuna_search_space(name):
         hp = VectorLassoLars._generate_optuna_search_space()
     elif name == "SyPI":
         hp = SyPI._generate_optuna_search_space()
+    elif name == "GroupLasso":
+        hp = GroupLasso._generate_optuna_search_space()
     return hp
 
 
