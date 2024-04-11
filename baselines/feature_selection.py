@@ -217,10 +217,10 @@ class ChronOMP(FeatureSelector):
     def _generate_optuna_search_space():
         hp = dict()
         hp["model"] = ["ARDL"]
-        hp["lags"] = [50]
+        hp["lags"] = [10]
         hp["trend"] = ["n","ct"]
         hp["association"] = ["Pearson"]#,"Spearman"]
-        hp["significance_threshold"] = [1e-20, 1e-10, 1e-5, 1e-4]
+        hp["significance_threshold"] = [1e-20, 1e-10,1e-7, 1e-5, 1e-4,1e-3, 1e-2,0.05]
         hp["method"] = ["f-test", "lr-test"]
         hp["max_features"] = [50]
         hp["valid_obs_param_ratio"] = [1.]
@@ -240,15 +240,15 @@ class BackwardChronOMP(ChronOMP):
         return config
     def _generate_optuna_parameters(trial):
         hp = ChronOMP._generate_optuna_parameters(trial)
-        hp["significance_threshold_backward"] = trial.suggest_float("significance_threshold_backward", 0.00001, 0.1, log=True)
+        hp["significance_threshold_backward"] = trial.suggest_float("significance_threshold_backward", 1e-20, 0.1, log=True)
         hp["method_backward"] = trial.suggest_categorical("method",["f-test", "wald-test", "lr-test"])
         return hp
     def _generate_optuna_search_space():
         hp = ChronOMP._generate_optuna_search_space()
         hp["lags"] = [10]
         hp["method"] = ["f-test"]
-        hp["significance_threshold"] = [1e-20, 1e-10, 1e-5, 1e-2]
-        hp["significance_threshold_backward"] = [1e-20, 1e-10, 1e-5, 1e-2]
+        hp["significance_threshold"] = [1e-20, 1e-10, 1e-5, 1e-3, 1e-2]
+        hp["significance_threshold_backward"] = [1e-20, 1e-10, 1e-5,1e-3, 1e-2]
         hp["method_backward"] = ["lr-test"]
         return hp
 

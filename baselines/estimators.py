@@ -143,8 +143,7 @@ class LassoLarsModel(SKLearnVectorized):
         self.target = target
         self.lags = config["lags"]
         self.model = LassoLars(**config["skconfig"])
-        
-        
+
 ##################################################################
 #                                                                #
 #   Create configs for completion and optuna                     #
@@ -218,7 +217,7 @@ def generate_optuna_search_space(name):
         hp["lags"] = [10]
         hp["trend"] = ["n","ct"]
     elif name == "SVRModel":
-        hp["lags"] = [20]
+        hp["lags"] = [50]
         hp["kernel"] = ["rbf", "sigmoid"]
         hp["coef0"] = [0.0]
         hp["C"] = [ 0.1, 1., 10.]
