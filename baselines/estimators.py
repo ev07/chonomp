@@ -144,6 +144,30 @@ class LassoLarsModel(SKLearnVectorized):
         self.lags = config["lags"]
         self.model = LassoLars(**config["skconfig"])
 
+        
+        
+        
+        
+##################################################################
+#                                                                #
+#          Deep models with pytorch forecasting                  #
+#                                                                #
+##################################################################
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ##################################################################
 #                                                                #
 #   Create configs for completion and optuna                     #

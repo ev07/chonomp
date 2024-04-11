@@ -502,7 +502,7 @@ class GroupLasso(FeatureSelector):
                   "model_config":{
                       "group_reg": hyperparameters.get("group_reg", 0.001),
                       "l1_reg": hyperparameters.get("l1_reg", 0.001),
-                      "n_iter": hyperparameters.get("n_iter", 1000),
+                      "n_iter": hyperparameters.get("n_iter", 200),
                       "tol": hyperparameters.get("tol", 1e-5)
                       }
                  }
@@ -517,8 +517,8 @@ class GroupLasso(FeatureSelector):
     def _generate_optuna_search_space():
         hp = dict()
         hp["lags"] = [10]
-        hp["group_reg"] = [1e-20,1e-10,1e-5,5*1e-4,1e-2,5*1e-1] 
-        hp["l1_reg"] = [1e-20,1e-10,1e-5,5*1e-4,1e-2,5*1e-1]
+        hp["group_reg"] = [0.00001, 0.0001, 0.0003, 0.0005, 0.0007, 0.0009, 0.001,  0.0014, 0.0018, 0.0022, 0.0026,0.003,  0.0034, 0.0038, 0.0042, 0.0046, 0.005, 0.007, 0.009, 0.05]
+        hp["l1_reg"] = [1e-20]
         return hp
 
 ##################################################################
