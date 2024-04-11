@@ -145,6 +145,27 @@ class LassoLarsModel(SKLearnVectorized):
         self.model = LassoLars(**config["skconfig"])
         
         
+        
+        
+##################################################################
+#                                                                #
+#          Deep models with pytorch forecasting                  #
+#                                                                #
+##################################################################
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ##################################################################
 #                                                                #
 #   Create configs for completion and optuna                     #
