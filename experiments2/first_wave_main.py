@@ -275,10 +275,6 @@ def generate_optuna_objective_function(fs_name, cls_name, dataset_setup, objecti
         return df_results[objective].mean()
         
     return optuna_objective_function, memorize
-    
-    
-    
-    return df_bootstrap[objective].mean()
 
 def full_experiment(dataset, fs_name, cls_name, experiment_identifier, seed=0):
     ex_datasetup = setup_dataset(dataset, None, None)["DATASET"]
