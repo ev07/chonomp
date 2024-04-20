@@ -172,7 +172,7 @@ def setup_dataset(dataset_name, filename, target):
         config["DATASET"]["HOLDOUT_RATIO"] = 0.9
         if dataset_name == "electricity_long":
             config["DATASET"]["HOLDOUT_RATIO"] = 0.3
-    elif dataset_name == "solar":
+    elif dataset_name in ["solar", "solar_long"]:
         config = {"DATASET":{**config["DATASET"],
             "PATH": "monash/solar",
             "CAUSES": "parents",
@@ -180,7 +180,9 @@ def setup_dataset(dataset_name, filename, target):
             "MAXIMUM_NUMBER_TARGETS": 10}
             }
         config["DATASET"]["HOLDOUT_RATIO"] = 0.9
-    elif dataset_name == "traffic":
+        if dataset_name == "solar_long":
+            config["DATASET"]["HOLDOUT_RATIO"] = 0.3
+    elif dataset_name in ["traffic","traffic_long"]:
         config = {"DATASET":{**config["DATASET"],
             "PATH": "monash/traffic",
             "CAUSES": "parents",
@@ -188,6 +190,8 @@ def setup_dataset(dataset_name, filename, target):
             "MAXIMUM_NUMBER_TARGETS": 10}
             }
         config["DATASET"]["HOLDOUT_RATIO"] = 0.9
+        if dataset_name == "traffic_long":
+            config["DATASET"]["HOLDOUT_RATIO"] = 0.3
     
     elif dataset_name == "size_4_gaussian":
         config = {"DATASET":{**config["DATASET"],

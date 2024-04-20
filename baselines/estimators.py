@@ -239,7 +239,7 @@ def generate_optuna_search_space(name):
     hp = dict()
     if name == "ARDLModel":
         hp["lags"] = [10]
-        hp["trend"] = ["n","ct"]
+        hp["trend"] = ["c"]
     elif name == "SVRModel":
         hp["lags"] = [50]
         hp["kernel"] = ["rbf", "sigmoid"]
