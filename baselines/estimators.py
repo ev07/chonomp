@@ -153,17 +153,89 @@ class LassoLarsModel(SKLearnVectorized):
 #                                                                #
 ##################################################################
 
+from pytorch_forecasting import Baseline, TemporalFusionTransformer, TimeSeriesDataSet, DeepAR
+from pytorch_forecasting.data import GroupNormalizer
+from pytorch_forecasting.metrics import MAE, SMAPE, PoissonLoss, QuantileLoss, RMSE
+from pytorch_forecasting.models.temporal_fusion_transformer.tuning import optimize_hyperparameters
+
+import pytorch_lightning as pl
 
 
+class PytorchForecaster(Estimator):
+    
+    def _prepare_data(self, data, train=True, offset=0):
+        # get dataloader
+        orig_to_new = dict([(c,i) for i,c in enumerate(data.columns)])
+        data = data.rename(columns=orig_to_new)
+        newtarget = orig_to_new[self.target]
+        data["time"]=pd.Series(range(offset,len(data)+offset))
+        data["groups"]=0
+        
+        dts = TimeSeriesDataSet(
+            data,
+            target=newtarget,
+            time_idx="time",
+            group_ids=["groups"],
+            max_encoder_length = self.config["lags"],
+            time_varying_unknown_reals = data.columns[:-2],
+            time_varying_known_reals = ["time"],
+            add_relative_time_idx = False,
+            add_target_scales = False,
+            add_encoder_length = False,
+            target_normalizer = None,
+            scalers=dict([(var,None) for var in data.columns]),
+            )
+        
+        if train:
+            return dts, dts.to_dataloader(train=True, batch_size=32)
+        
+        indextime = pd.DataFrame({"time":data["time"],"index":data.index})
+        return  dts, dts_val.to_dataloader(train=False, batch_size=320), indextime
+
+    def _create_model(self, dts):
+        return None
+    
+    def fit(self, data):
+        dts, train_loader = self._prepare_data(data)
+        self.offset=len(data)
+        self.model = self._create_model(self,dts)
+        lightning_trainer = pl.Trainer(max_epochs=self.config["epochs"])
+        
+        lightning_trainer.fit(
+            self.model,
+            train_dataloaders=train_loader
+            )
+    
+    def predict(self, data):
+        dts, val_loader, index_time = self._prepare_data(data, train=False, offset=self.offset)
+        y_pred, dfinfo = self.model.predict(val_loader, return_index=True)
+        y_pred = y_pred.cpu().detach().numpy().flatten()
+        dfinfo["y_pred"]=y_pred
+        dfinfo = dfinfo.merge(index_time,on="time")
+        dfinfo.index = dfinfo["index"]
+        return dfinfo["y_pred"]
+
+    def fit_predict(self, data_train, data_test):
+        self.fit(data_train)
+        return self.predict(data_test)
 
 
+class TFTModel(PytorchForecaster):
+    def _create_model(self, dts):
+        model = TemporalFusionTransformer.from_dataset(
+            dts,
+            loss=RMSE(),
+            **self.config["config"]
+        )
+        return model
 
-
-
-
-
-
-
+class DeepARModel(PytorchForecaster):
+    def _create_model(self, dts):
+        model = DeepAR.from_dataset(
+            dts,
+            **self.config["config"]
+        )
+        return model
 
 
 ##################################################################
@@ -207,6 +279,23 @@ def complete_config_from_parameters(name, hyperparameters):
                   "skconfig":{"alpha":hyperparameters.get("alpha", 1.),
                               "fit_intercept":True,
                               "fit_path":False}}
+    elif name == "TFTModel":
+        config = {"lags":hyperparameters.get("lags", 70),
+                  "epochs":hyperparameters.get("lags", 5),
+                  "config":{"hidden_size":hyperparameters.get("hidden_size", 16),
+                            "lstm_layers":hyperparameters.get("lstm_layers", 2),
+                            "attention_head_size":hyperparameters.get("attention_head_size", 4),
+                            "dropout":hyperparameters.get("dropout", 0.1),
+                            "hidden_continuous_size":hyperparameters.get("hidden_continuous_size", 8),
+                           
+                  }
+            }
+        
+    elif name == "DeepARModel":
+        config = {"lags":hyperparameters.get("lags", 70),
+                  "epochs":hyperparameters.get("lags", 5),
+                  "config":{
+            }
     return config
 
 def generate_optuna_parameters(name, trial):
@@ -230,6 +319,14 @@ def generate_optuna_parameters(name, trial):
     elif name == "LassoLarsModel":
         hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
         hp["alpha"] = trial.suggest_float("alpha", 0.001, 10., log=True)
+    elif name == "TFTModel":
+        hp["lags"] = trial.suggest_int("lags",5,70,1,log=False)
+        hp["epochs"] = trial.suggest_int("epochs",5,10,1,log=False)
+        hp["hidden_size"] = trial.suggest_int("hidden_size",8,64,log=True)
+        hp["attention_head_size"] = trial.suggest_int("attention_head_size",1,4,1,log=False)
+        hp["dropout"] = trial.suggest_float("dropout", 0.1, 0.5, log=False)
+        hp["hidden_continous_size"] = trial.suggest_int("hidden_continuous_size",4,32,log=True)
+        hp["lstm_layers"] = trial.suggest_categorical("lstm_layers",[1,2,3])
     return hp
 
 
@@ -252,6 +349,14 @@ def generate_optuna_search_space(name):
     elif name == "LassoLarsModel":
         hp["lags"] = [20]
         hp["alpha"] = [0.001,0.01, 0.1,  1.,  10.]
+    elif name == "TFTModel":
+        hp["lags"] = [70]
+        hp["epochs"] = [5,10]
+        hp["hidden_size"] = [8,16,32,64]
+        hp["attention_head_size"] = [1,2,4]
+        hp["dropout"] = [0.2]
+        hp["hidden_continous_size"] = [8]
+        hp["lstm_layers"] = [1,2]
     return hp
 
 
