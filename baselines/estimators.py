@@ -26,6 +26,7 @@ class Estimator():
     
     def __init__(self, config, target):
         self.config = config
+        self.target = target
     
     def fit_predict(self, data_train, data_test):
         """retourne une series pandas correspondant aux valeurs estimés sur le jeu de donnée de test
@@ -159,17 +160,17 @@ from pytorch_forecasting.data import GroupNormalizer
 from pytorch_forecasting.metrics import MAE, SMAPE, PoissonLoss, QuantileLoss, RMSE
 from pytorch_forecasting.models.temporal_fusion_transformer.tuning import optimize_hyperparameters
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 
 
 class PytorchForecaster(Estimator):
     
     def _prepare_data(self, data, train=True, offset=0):
         # get dataloader
-        orig_to_new = dict([(c,i) for i,c in enumerate(data.columns)])
+        orig_to_new = dict([(c,str(i)) for i,c in enumerate(data.columns)])
         data = data.rename(columns=orig_to_new)
         newtarget = orig_to_new[self.target]
-        data["time"]=pd.Series(range(offset,len(data)+offset))
+        data["time"]=range(offset,len(data)+offset)
         data["groups"]=0
         
         dts = TimeSeriesDataSet(
@@ -178,20 +179,20 @@ class PytorchForecaster(Estimator):
             time_idx="time",
             group_ids=["groups"],
             max_encoder_length = self.config["lags"],
-            time_varying_unknown_reals = data.columns[:-2],
+            time_varying_unknown_reals = list(data.columns[:-2]),
             time_varying_known_reals = ["time"],
             add_relative_time_idx = False,
             add_target_scales = False,
             add_encoder_length = False,
             target_normalizer = None,
-            scalers=dict([(var,None) for var in data.columns]),
+            scalers=dict([(var,None) for var in data.columns if var!=newtarget]),
             )
         
         if train:
             return dts, dts.to_dataloader(train=True, batch_size=32)
         
         indextime = pd.DataFrame({"time":data["time"],"index":data.index})
-        return  dts, dts_val.to_dataloader(train=False, batch_size=320), indextime
+        return  dts, dts.to_dataloader(train=False, batch_size=320), indextime
 
     def _create_model(self, dts):
         return None
@@ -199,17 +200,20 @@ class PytorchForecaster(Estimator):
     def fit(self, data):
         dts, train_loader = self._prepare_data(data)
         self.offset=len(data)
-        self.model = self._create_model(self,dts)
-        lightning_trainer = pl.Trainer(max_epochs=self.config["epochs"])
+        self.model = self._create_model(dts)
+        self.lightning_trainer = pl.Trainer(max_epochs=self.config["epochs"],
+                                       accelerator="gpu", devices=1)
         
-        lightning_trainer.fit(
+        self.lightning_trainer.fit(
             self.model,
             train_dataloaders=train_loader
             )
     
     def predict(self, data):
         dts, val_loader, index_time = self._prepare_data(data, train=False, offset=self.offset)
-        y_pred, dfinfo = self.model.predict(val_loader, return_index=True)
+        res = self.model.predict(val_loader, return_index=True, trainer_kwargs={"accelerator":"gpu", "devices":1})
+        y_pred = res.output
+        dfinfo = res.index
         y_pred = y_pred.cpu().detach().numpy().flatten()
         dfinfo["y_pred"]=y_pred
         dfinfo = dfinfo.merge(index_time,on="time")
@@ -283,7 +287,7 @@ def complete_config_from_parameters(name, hyperparameters):
                               "fit_path":False}}
     elif name == "TFTModel":
         config = {"lags":hyperparameters.get("lags", 70),
-                  "epochs":hyperparameters.get("lags", 5),
+                  "epochs":hyperparameters.get("epochs", 5),
                   "config":{"hidden_size":hyperparameters.get("hidden_size", 16),
                             "lstm_layers":hyperparameters.get("lstm_layers", 2),
                             "attention_head_size":hyperparameters.get("attention_head_size", 4),
@@ -297,7 +301,7 @@ def complete_config_from_parameters(name, hyperparameters):
         config = {"lags":hyperparameters.get("lags", 70),
                   "epochs":hyperparameters.get("lags", 5),
                   "config":{
-            }
+            }}
     return config
 
 def generate_optuna_parameters(name, trial):
@@ -327,7 +331,7 @@ def generate_optuna_parameters(name, trial):
         hp["hidden_size"] = trial.suggest_int("hidden_size",8,64,log=True)
         hp["attention_head_size"] = trial.suggest_int("attention_head_size",1,4,1,log=False)
         hp["dropout"] = trial.suggest_float("dropout", 0.1, 0.5, log=False)
-        hp["hidden_continous_size"] = trial.suggest_int("hidden_continuous_size",4,32,log=True)
+        hp["hidden_continuous_size"] = trial.suggest_int("hidden_continuous_size",4,32,log=True)
         hp["lstm_layers"] = trial.suggest_categorical("lstm_layers",[1,2,3])
     return hp
 
@@ -357,7 +361,7 @@ def generate_optuna_search_space(name):
         hp["hidden_size"] = [8,16,32,64]
         hp["attention_head_size"] = [1,2,4]
         hp["dropout"] = [0.2]
-        hp["hidden_continous_size"] = [8]
+        hp["hidden_continuous_size"] = [8]
         hp["lstm_layers"] = [1,2]
     return hp
 
