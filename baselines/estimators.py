@@ -230,6 +230,37 @@ class TFTModel(PytorchForecaster):
         return model
 
 class DeepARModel(PytorchForecaster):
+
+    def _prepare_data(self, data, train=True, offset=0):
+        # get dataloader
+        orig_to_new = dict([(c,i) for i,c in enumerate(data.columns)])
+        data = data.rename(columns=orig_to_new)
+        newtarget = orig_to_new[self.target]
+        data["time"]=pd.Series(range(offset,len(data)+offset))
+        data["groups"]=0
+        
+        cols_without_target = [x for x in data.columns[:-2] if x!=newtarget]
+        
+        dts = TimeSeriesDataSet(
+            data,
+            target=newtarget,
+            time_idx="time",
+            group_ids=["groups"],
+            max_encoder_length = self.config["lags"],
+            time_varying_unknown_reals = [newtarget],
+            time_varying_known_reals = ["time"]+cols_without_target,
+            add_relative_time_idx = False,
+            add_target_scales = False,
+            add_encoder_length = False,
+            target_normalizer = None,
+            scalers=dict([(var,None) for var in data.columns]),
+            )
+        
+        if train:
+            return dts, dts.to_dataloader(train=True, batch_size=32)
+        
+        indextime = pd.DataFrame({"time":data["time"],"index":data.index})
+        return  dts, dts_val.to_dataloader(train=False, batch_size=320), indextime
     def _create_model(self, dts):
         model = DeepAR.from_dataset(
             dts,
@@ -281,7 +312,7 @@ def complete_config_from_parameters(name, hyperparameters):
                               "fit_path":False}}
     elif name == "TFTModel":
         config = {"lags":hyperparameters.get("lags", 70),
-                  "epochs":hyperparameters.get("lags", 5),
+                  "epochs":hyperparameters.get("epochs", 5),
                   "config":{"hidden_size":hyperparameters.get("hidden_size", 16),
                             "lstm_layers":hyperparameters.get("lstm_layers", 2),
                             "attention_head_size":hyperparameters.get("attention_head_size", 4),
@@ -293,8 +324,11 @@ def complete_config_from_parameters(name, hyperparameters):
         
     elif name == "DeepARModel":
         config = {"lags":hyperparameters.get("lags", 70),
-                  "epochs":hyperparameters.get("lags", 5),
-                  "config":{
+                  "epochs":hyperparameters.get("epochs", 5),
+                  "config":{"cell_type" = hyperparameters.get("cell_type", "LSTM"),
+                            "hidden_size" = hyperparameters.get("hidden_size", 8),
+                            "rnn_layers" = hyperparameters.get("rnn_layers", 2),
+                            "dropout" = hyperparameters.get("dropout", 0.1)}
             }
     return config
 
@@ -327,6 +361,13 @@ def generate_optuna_parameters(name, trial):
         hp["dropout"] = trial.suggest_float("dropout", 0.1, 0.5, log=False)
         hp["hidden_continous_size"] = trial.suggest_int("hidden_continuous_size",4,32,log=True)
         hp["lstm_layers"] = trial.suggest_categorical("lstm_layers",[1,2,3])
+    elif name == "DeepARModel":
+        hp["lags"] = trial.suggest_int("lags",5,70,1,log=False)
+        hp["epochs"] = trial.suggest_int("epochs",5,10,1,log=False)
+        hp["cell_type"] = trial.suggest_categorical("cell_type",["LSTM", "GRU"])
+        hp["hidden_size"] = trial.suggest_int("hidden_size",8,64,log=True)
+        hp["rnn_layers"] = trial.suggest_categorical("rnn_layers",[1,2,3])
+        hp["dropout"] = trial.suggest_float("dropout", 0.1, 0.5, log=False)
     return hp
 
 
@@ -357,6 +398,13 @@ def generate_optuna_search_space(name):
         hp["dropout"] = [0.2]
         hp["hidden_continous_size"] = [8]
         hp["lstm_layers"] = [1,2]
+    elif name == "DeepARModel":
+        hp["lags"] = [70]
+        hp["epochs"] = [5,10]
+        hp["cell_type"] = ["LSTM", "GRU"]
+        hp["hidden_size"] = [8, 16, 32, 64]
+        hp["rnn_layers"] = [1,2,3]
+        hp["dropout"] = [0.1, 0.2, 0.3]
     return hp
 
 
