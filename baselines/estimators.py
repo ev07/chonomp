@@ -9,6 +9,15 @@ import numpy as np
 
 from sklearn.metrics import mean_absolute_percentage_error
 
+from pytorch_forecasting import Baseline, TemporalFusionTransformer, TimeSeriesDataSet, DeepAR
+from pytorch_forecasting.data import GroupNormalizer
+from pytorch_forecasting.metrics import MAE, SMAPE, PoissonLoss, QuantileLoss, RMSE
+from pytorch_forecasting.models.temporal_fusion_transformer.tuning import optimize_hyperparameters
+try:
+    import lightning.pytorch as pl
+except ImportError:
+    import pytorch_lightning as pl
+
 rootdir = '../'
 sys.path.append(rootdir)
 
@@ -154,13 +163,6 @@ class LassoLarsModel(SKLearnVectorized):
 #          Deep models with pytorch forecasting                  #
 #                                                                #
 ##################################################################
-
-from pytorch_forecasting import Baseline, TemporalFusionTransformer, TimeSeriesDataSet, DeepAR
-from pytorch_forecasting.data import GroupNormalizer
-from pytorch_forecasting.metrics import MAE, SMAPE, PoissonLoss, QuantileLoss, RMSE
-from pytorch_forecasting.models.temporal_fusion_transformer.tuning import optimize_hyperparameters
-
-import lightning.pytorch as pl
 
 
 class PytorchForecaster(Estimator):
