@@ -12,6 +12,7 @@ from sklearn.feature_selection import SelectFromModel
 from statsmodels.tsa.vector_ar.var_model import VAR
 
 import group_lasso
+import mrmr
 
 #from baselines.SyPI import SyPI_method
 
@@ -676,9 +677,74 @@ class BivariateGranger(FeatureSelector):
         hp["maxlags"] = [5,10,15]
         hp["alpha_level"] = [0.001, 0.01, 0.05,  0.1]
         return hp
+        
+##################################################################
+#                                                                #
+#           Vectorized MRMR                                      #
+#                                                                #
+##################################################################
 
+class VectorMRMR(FeatureSelector):
+    """
+    Principle: Apply mRMR on the vectorized data.
+    We get a list of selected (variable, lags).
+    Then, output the list of unique selected variables.
+    """
+    
+    selection_mode = "variable"  # the returned itemset consists in variables without lags.
+    
+    def __init__(self, config, target):
+        super().__init__(config,target)
+    
+    def fit(self, data):
+        X, y, _ = self.prepare_data_vectorize(data, self.config["lags"])
+        X_df, y_series = pd.DataFrame(X), pd.Series(y)
+        
 
+        # There can be an error if the number of feature given in argument is too large.
+        # Default strategy is to replace the parameter by the size of the feature space.
+        # A parameter can be given explicitely to raise an error in a custom class instead.
+        # This is where we handle it, with a custom error that we send back.
+        num_features = self.config["num_features"]
+        
+        vector_selected = mrmr.pandas.mrmr_regression(
+            X_df, y_series, num_features,
+            cat_features=None,
+            only_same_domain=False, return_scores=False,
+            n_jobs=1, show_progress=False, **self.config["config"])
+        
+        mask = [var in vector_selected for var in X_df.columns]
+        
+        selected = self.vector_mask_to_columns(mask, data)
+        
+        return selected
 
+    def get_selected_features(self):
+        return self.selected
+
+    def _complete_config_from_parameters(hyperparameters):
+        config = {"lags": hyperparameters.get("lags", 10),
+                  "num_features": hyperparameters.get("num_features",10),
+                  "config": {"alpha":hyperparameters.get("relevance", "rf"),
+                                   "redundancy":hyperparameters.get("redundancy", "c"),
+                                   "denominator":hyperparameters.get("denominator", "mean")}
+                  }
+        return config
+    def _generate_optuna_parameters(trial):
+        hp = dict()
+        hp["lags"] = trial.suggest_int("lags",5,50,1,log=False)
+        hp["num_features"] = trial.suggest_int("num_features", 5, 100, log=True)
+        hp["relevance"] = trial.suggest_categorical(,["f","rf"])
+        hp["denominator"] = trial.suggest_categorical(,["mean","max"])
+        return hp
+
+    def _generate_optuna_search_space():
+        hp = dict()
+        hp["lags"] = [50]
+        hp["num_features"] = [5, 10, 20, 30, 50, 70, 100]
+        hp["relevance"] = ["rf"]
+        hp["denominator"] = ["mean","max"]
+        return hp
 
 ##################################################################
 #                                                                #
