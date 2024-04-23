@@ -217,8 +217,8 @@ class ChronOMP(FeatureSelector):
     def _generate_optuna_search_space():
         hp = dict()
         hp["model"] = ["ARDL"]
-        hp["lags"] = [10]
-        hp["trend"] = ["n","ct"]
+        hp["lags"] = [50]
+        hp["trend"] = ["c","ct"]
         hp["association"] = ["Pearson"]#,"Spearman"]
         hp["significance_threshold"] = [1e-20, 1e-10,1e-7, 1e-5, 1e-4,1e-3, 1e-2,0.05]
         hp["method"] = ["f-test", "lr-test"]
@@ -247,8 +247,8 @@ class BackwardChronOMP(ChronOMP):
         hp = ChronOMP._generate_optuna_search_space()
         hp["lags"] = [10]
         hp["method"] = ["f-test"]
-        hp["significance_threshold"] = [1e-20, 1e-10, 1e-5, 1e-3, 1e-2]
-        hp["significance_threshold_backward"] = [1e-20, 1e-10, 1e-5,1e-3, 1e-2]
+        hp["significance_threshold"] = [1e-5, 1e-3, 1e-2]
+        hp["significance_threshold_backward"] = [ 1e-5,1e-3,0.003, 1e-2,0.05]
         hp["method_backward"] = ["lr-test"]
         return hp
 
@@ -517,7 +517,7 @@ class GroupLasso(FeatureSelector):
     def _generate_optuna_search_space():
         hp = dict()
         hp["lags"] = [10]
-        hp["group_reg"] = [0.00001, 0.0001, 0.0003, 0.0005, 0.0007, 0.0009, 0.001,  0.0014, 0.0018, 0.0022, 0.0026,0.003,  0.0034, 0.0038, 0.0042, 0.0046, 0.005, 0.007, 0.009, 0.05]
+        hp["group_reg"] = [0.00001, 0.0001, 0.0003, 0.0005, 0.0007, 0.0009, 0.001,  0.0014, 0.0018, 0.0022, 0.0026,0.003,  0.0034, 0.0038, 0.0042, 0.0046, 0.005, 0.007, 0.009, 0.015, 0.02, 0.035, 0.005]
         hp["l1_reg"] = [1e-20]
         return hp
 
@@ -667,14 +667,14 @@ class BivariateGranger(FeatureSelector):
         
     def _generate_optuna_parameters(trial):
         hp = dict()    
-        hp["maxlags"] = trial.suggest_int("maxlags",5,20,1,log=False)
+        hp["maxlags"] = trial.suggest_int("maxlags",5,50,1,log=False)
         hp["alpha_level"] = trial.suggest_float("alpha_level",0.0001,  0.1, log=True)
         return hp
     
     def _generate_optuna_search_space():
         hp = dict()
-        hp["maxlags"] = [5,10,15]
-        hp["alpha_level"] = [0.001, 0.01, 0.05,  0.1]
+        hp["maxlags"] = [50]
+        hp["alpha_level"] = [0.0001,0.001, 0.01, 0.05,  0.1]
         return hp
 
 

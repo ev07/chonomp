@@ -202,7 +202,9 @@ class PytorchForecaster(Estimator):
         self.offset=len(data)
         self.model = self._create_model(dts)
         self.lightning_trainer = pl.Trainer(max_epochs=self.config["epochs"],
-                                       accelerator="gpu", devices=1)
+                                       accelerator="gpu", devices=1,
+                                       enable_progress_bar=False,
+                                       enable_model_summary=False)
         
         self.lightning_trainer.fit(
             self.model,
@@ -238,10 +240,10 @@ class DeepARModel(PytorchForecaster):
 
     def _prepare_data(self, data, train=True, offset=0):
         # get dataloader
-        orig_to_new = dict([(c,i) for i,c in enumerate(data.columns)])
+        orig_to_new = dict([(c,str(i)) for i,c in enumerate(data.columns)])
         data = data.rename(columns=orig_to_new)
         newtarget = orig_to_new[self.target]
-        data["time"]=pd.Series(range(offset,len(data)+offset))
+        data["time"]=range(offset,len(data)+offset)
         data["groups"]=0
         
         cols_without_target = [x for x in data.columns[:-2] if x!=newtarget]
@@ -258,14 +260,14 @@ class DeepARModel(PytorchForecaster):
             add_target_scales = False,
             add_encoder_length = False,
             target_normalizer = None,
-            scalers=dict([(var,None) for var in data.columns]),
+            scalers=dict([(var,None) for var in data.columns if var!=newtarget]),
             )
         
         if train:
             return dts, dts.to_dataloader(train=True, batch_size=32)
         
         indextime = pd.DataFrame({"time":data["time"],"index":data.index})
-        return  dts, dts_val.to_dataloader(train=False, batch_size=320), indextime
+        return  dts, dts.to_dataloader(train=False, batch_size=320), indextime
     def _create_model(self, dts):
         model = DeepAR.from_dataset(
             dts,
@@ -331,10 +333,10 @@ def complete_config_from_parameters(name, hyperparameters):
     elif name == "DeepARModel":
         config = {"lags":hyperparameters.get("lags", 70),
                   "epochs":hyperparameters.get("epochs", 5),
-                  "config":{"cell_type" = hyperparameters.get("cell_type", "LSTM"),
-                            "hidden_size" = hyperparameters.get("hidden_size", 8),
-                            "rnn_layers" = hyperparameters.get("rnn_layers", 2),
-                            "dropout" = hyperparameters.get("dropout", 0.1)}
+                  "config":{"cell_type" : hyperparameters.get("cell_type", "LSTM"),
+                            "hidden_size" : hyperparameters.get("hidden_size", 8),
+                            "rnn_layers" : hyperparameters.get("rnn_layers", 2),
+                            "dropout" : hyperparameters.get("dropout", 0.1)}
             }
     return config
 
