@@ -166,6 +166,14 @@ def setup_dataset(dataset_name, filename, target):
             "MAXIMUM_NUMBER_TARGETS": 10}
             }
         config["DATASET"]["HOLDOUT_RATIO"] = 0.9
+    elif dataset_name == "temperature_rain":
+        config = {"DATASET":{**config["DATASET"],
+            "PATH": "monash/temperature_rain",
+            "CAUSES": "parents",
+            "TARGET_CHOICE": "sampling",
+            "MAXIMUM_NUMBER_TARGETS": 10}
+            }
+        config["DATASET"]["HOLDOUT_RATIO"] = 0.9
     elif dataset_name in ["electricity", "electricity_long"]:
         config = {"DATASET":{**config["DATASET"],
             "PATH": "monash/electricity",

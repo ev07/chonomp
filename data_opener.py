@@ -127,7 +127,8 @@ def open_dataset_and_ground_truth(dataset_name: str,
     elif dataset_name=="monash/electricity" or\
          dataset_name=="monash/traffic" or\
          dataset_name=="monash/weather" or \
-         dataset_name=="monash/solar":
+         dataset_name=="monash/solar" or\
+         dataset_name=="monash/temperature_rain":
         df = pd.read_csv(rootdir + "/data/" + dataset_name + "/" + filename)
         df.columns = [str(i) for i in df.columns]
     elif dataset_name=="equivalence_datasets/size_4_gaussian":
@@ -293,7 +294,7 @@ def open_dataset_and_ground_truth(dataset_name: str,
         return df, var_names, None, None
     elif dataset_name=="AusMeteo":
         return df, var_names, None, None
-    elif dataset_name in ["monash/solar", "monash/electricity", "monash/traffic", "monash/weather"]:
+    elif dataset_name in ["monash/solar", "monash/electricity", "monash/traffic", "monash/weather", "monash/temperature_rain"]:
         return df, var_names, None, None
     
     
