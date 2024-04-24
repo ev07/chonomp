@@ -1,8 +1,8 @@
 import sys
 import os
 
-os.environ['OPENBLAS_NUM_THREAD']='10'
-os.environ['MKL_NUM_THREADS'] = '10'
+os.environ['OPENBLAS_NUM_THREAD']='3'
+os.environ['MKL_NUM_THREADS'] = '3'
 
 import time
 import pandas as pd
@@ -318,6 +318,8 @@ def full_experiment(dataset, fs_name, cls_name, experiment_identifier, seed=0):
         for target in target_set:
             print("\tTarget", target, "beggining")
             count+=1
+            if count!=10:
+                continue
             
             # check if results for the given target of the given file have already been computed
             if fs_cls_pair_already_optimized(dataset, fs_name, cls_name, filename, target, experiment_identifier):
