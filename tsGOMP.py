@@ -417,11 +417,12 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
         Thus, the target variable is by default in the selected set.
         
         config contains:
-         - equivalent_version: ["f","fb","fg","fbg","fbc"] the version of the algorithm to apply.
+         - equivalent_version: ["f","fb","fg","fbg","fbc","fbc_m"] the version of the algorithm to apply.
              "f" is a simple forward, "fb" a forward backward, without equivalent set discovery.
              "fg" is a forward phase with equivalent set during forward phase.
              "fbg" is a forward backward phase before applying a greedy equivalent search
              "fbc" is a forward backward phase before applying a comprehensive (theory-sound) search.
+             "fbc_m" is fbc with a final check that the equivalence found are truly non-redundant variables.
          - method: define how the stopping criterion will be computed if applicable.
          - significance_threshold: define the difference in model significance to stop.
          - max_features: the maximal number of selected features
@@ -459,7 +460,7 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
             assert "significance_threshold_backward" in self.config
             assert "method_backward" in self.config
         # configuration parameters required for equivalent set discovery
-        if self.config["equivalent_version"] in ["fg", "fgb", "fbg", "fbc"]:
+        if self.config["equivalent_version"] in ["fg", "fgb", "fbg", "fbc", "fbc_m"]:
             assert "partial_correlation" in self.config
             assert "partial_correlation.config" in self.config
             assert "equivalence_threshold" in self.config
@@ -472,7 +473,7 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
         self.association_objects = association_object
         
         # equivalence search objects
-        if self.config["equivalent_version"] in ["fg", "fgb", "fbg", "fbc"]:
+        if self.config["equivalent_version"] in ["fg", "fgb", "fbg", "fbc", "fbc_m"]:
             partial_corr_constructor = self.config["partial_correlation"]
             partial_correlation_object = partial_corr_constructor(self.config["partial_correlation.config"])
             self.partial_correlation_objects = partial_correlation_object
@@ -813,7 +814,7 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
             # create the conditioning set model
             if self.config["equivalent_version"]=="fbg":
                 selected_variables = self.selected_features[:index]
-            elif self.config["equivalent_version"]=="fbc":
+            elif self.config["equivalent_version"] in ["fbc", "fbc_m"]:
                 selected_variables = self.selected_features[:index]+self.selected_features[index+1:]
             current_model = self._train_model(data, selected_variables)
             residuals = current_model.residuals()
@@ -823,7 +824,7 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
             # compute equivalent set 
             if self.config["equivalent_version"]=="fbg":
                 equivalent_variables[chosen_variable] = self._equivalent_set_greedy(data, chosen_variable, residuals, candidate_variables)
-            elif self.config["equivalent_version"]=="fbc":  # different function since C indep X1...Xn verified due to MB property
+            elif self.config["equivalent_version"] in ["fbc", "fbc_m"]:  # different function since C indep X1...Xn verified due to MB property
                 # also, here, do the proper test with full model computation, not residual use.
                 equivalent_variables[chosen_variable] = self._equivalent_set_comprehensive_model(data, chosen_variable, candidate_variables, selected_variables)
             # remove equivalent variables
@@ -832,7 +833,23 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
         
         self.equivalent_variables = equivalent_variables
         
-
+    def _verify_equivalence_relevance(self,data):
+        # verify for each equivalent variable if it is truly relevant.
+        # allows more control since this property is never checked directly,
+        # only indirectly with the backward phase on the reference set.
+        for key in self.equivalent_variables:
+            covariates = [var for var in self.selected_features if var!=key]
+            restricted_model = self._train_model(data, covariates)
+            to_remove_list = []
+            for candidate in self.equivalent_variables[key]:
+                full_model = self._train_model(data, covariates+[candidates])
+                metric = full_model.stopping_metric(restricted_model, self.config["method_backward"])
+                threshold = self.config["significance_threshold_backward"]
+                if metric>=threshold:
+                    to_remove_list.append(candidate)
+            for to_remove in to_remove_list:
+                self.equivalent_variables[key].remove(to_remove)
+            
                 
     def fit(self, data, initial_selected=[], check_stopping_on_initial=False):
         """
@@ -864,8 +881,12 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
             self._backward(data)
         
         # post-equivalent search
-        if self.config["equivalent_version"] in ["fbg", "fbc"]:
+        if self.config["equivalent_version"] in ["fbg", "fbc", "fbc_m"]:
             self._equivalent_search(data)
+        
+        # final relevance verification
+        if self.config["equivalent_version"] == "fbc_m":
+            self._verify_equivalence_relevance(data)
         
         self.fitted = True
 
