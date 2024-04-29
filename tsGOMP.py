@@ -735,8 +735,13 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
         #      index is the timestamp
         #      column is the feature name
         
+        model_fit_time = 0
+        association_computation_time = 0
+        
         # train first model with the list of covariate given.
+        t=time.time()
         selected_features, candidate_variables, previous_model, current_model, residuals, time_modeltrain_start, time_modeltrain_end = self._initialize_fit(initial_selected, data)
+        model_fit_time+=time.time()-t
         
         # keep track of the equivalent covariates to each covariate.
         equivalent_variables = self.equivalent_variables
@@ -748,7 +753,9 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
                 break
             
             # compute associations
+            t=time.time()
             measured_associations = self.association_objects.association(residuals, data[candidate_variable_list])
+            association_computation_time+=time.time()-t
             
             chosen_index = np.argmax(measured_associations)
             chosen_variable = candidate_variable_list[chosen_index]
@@ -778,6 +785,7 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
                 removed = self.selected_features.pop(-1)
                 if self.config["equivalent_version"] in ["fgb", "fg"]:
                     self.equivalent_variables.pop(removed)
+        #print("model",model_fit_time,"association",association_computation_time)
     
     def _backward(self, data):
         """
