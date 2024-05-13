@@ -12,7 +12,6 @@ from sklearn.metrics import mean_absolute_percentage_error
 from pytorch_forecasting import Baseline, TemporalFusionTransformer, TimeSeriesDataSet, DeepAR
 from pytorch_forecasting.data import GroupNormalizer
 from pytorch_forecasting.metrics import MAE, SMAPE, PoissonLoss, QuantileLoss, RMSE
-from pytorch_forecasting.models.temporal_fusion_transformer.tuning import optimize_hyperparameters
 try:
     import lightning.pytorch as pl
 except ImportError:

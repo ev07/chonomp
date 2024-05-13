@@ -522,6 +522,8 @@ class GroupLasso(FeatureSelector):
         hp["l1_reg"] = [1e-20]
         return hp
 
+
+
 ##################################################################
 #                                                                #
 #               Recursive Feature Elimination                    #
@@ -734,8 +736,8 @@ class VectorMRMR(FeatureSelector):
         hp = dict()
         hp["lags"] = trial.suggest_int("lags",5,50,1,log=False)
         hp["num_features"] = trial.suggest_int("num_features", 5, 100, log=True)
-        hp["relevance"] = trial.suggest_categorical(,["f","rf"])
-        hp["denominator"] = trial.suggest_categorical(,["mean","max"])
+        hp["relevance"] = trial.suggest_categorical("relevance",["f","rf"])
+        hp["denominator"] = trial.suggest_categorical("denominator",["mean","max"])
         return hp
 
     def _generate_optuna_search_space():
@@ -810,6 +812,32 @@ class SyPI(FeatureSelector):
         hp["p_cond2"] = [0.001, 0.01, 0.05, 0.1]
         return hp
         
+
+##################################################################
+#                                                                #
+#                       No Selection Baseline                    #
+#                                                                #
+##################################################################
+
+
+
+class NoSelection(FeatureSelector):
+    def fit(self, data):
+        self.selected = list(data.columns)
+        return self.selected
+    
+    def get_selected_features(self):
+        return self.selected
+        
+    def _complete_config_from_parameters(hyperparameters):
+        return dict()
+        
+    def _generate_optuna_parameters(trial):
+        return dict()
+    
+    def _generate_optuna_search_space():
+        return dict()
+
 ##################################################################
 #                                                                #
 #   Create configs for completion and optuna                     #
@@ -833,6 +861,8 @@ def complete_config_from_parameters(name, hyperparameters):
         config = SyPI._complete_config_from_parameters(hyperparameters)
     elif name == "GroupLasso":
         config = GroupLasso._complete_config_from_parameters(hyperparameters)
+    elif name == "NoSelection":
+        config = NoSelection._complete_config_from_parameters(hyperparameters)
     return config
     
     
@@ -854,6 +884,8 @@ def generate_optuna_parameters(name, trial):
         hp = SyPI._generate_optuna_parameters(trial)
     elif name == "GroupLasso":
         hp = GroupLasso._generate_optuna_parameters(trial)
+    elif name == "NoSelection":
+        hp = NoSelection._generate_optuna_parameters(trial)
     return hp
 
     
@@ -875,6 +907,8 @@ def generate_optuna_search_space(name):
         hp = SyPI._generate_optuna_search_space()
     elif name == "GroupLasso":
         hp = GroupLasso._generate_optuna_search_space()
+     elif name == "NoSelection":
+        hp = NoSelection._generate_optuna_search_space()
     return hp
 
 
