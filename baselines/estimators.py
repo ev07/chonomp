@@ -12,7 +12,6 @@ from sklearn.metrics import mean_absolute_percentage_error
 from pytorch_forecasting import Baseline, TemporalFusionTransformer, TimeSeriesDataSet, DeepAR
 from pytorch_forecasting.data import GroupNormalizer
 from pytorch_forecasting.metrics import MAE, SMAPE, PoissonLoss, QuantileLoss, RMSE
-from pytorch_forecasting.models.temporal_fusion_transformer.tuning import optimize_hyperparameters
 try:
     import lightning.pytorch as pl
 except ImportError:
@@ -384,13 +383,13 @@ def generate_optuna_parameters(name, trial):
 def generate_optuna_search_space(name):
     hp = dict()
     if name == "ARDLModel":
-        hp["lags"] = [10]
+        hp["lags"] = [96]
         hp["trend"] = ["c"]
     elif name == "SVRModel":
-        hp["lags"] = [50]
-        hp["kernel"] = ["rbf", "sigmoid"]
+        hp["lags"] = [20]
+        hp["kernel"] = ["rbf"] # ["rbf", "sigmoid"]
         hp["coef0"] = [0.0]
-        hp["C"] = [ 0.1, 1., 10.]
+        hp["C"] = [ 1.] # [0.1, 1., 10.]
     elif name == "KNeighborRegressorModel":
         hp["lags"] = [20]
         hp["n_neighbors"] = [5,  10,  50]
@@ -401,20 +400,20 @@ def generate_optuna_search_space(name):
         hp["lags"] = [20]
         hp["alpha"] = [0.001,0.01, 0.1,  1.,  10.]
     elif name == "TFTModel":
-        hp["lags"] = [70]
+        hp["lags"] = [96]
         hp["epochs"] = [5,10]
-        hp["hidden_size"] = [8,16,32,64]
+        hp["hidden_size"] = [8,16,64]
         hp["attention_head_size"] = [1,2,4]
         hp["dropout"] = [0.2]
         hp["hidden_continuous_size"] = [8]
         hp["lstm_layers"] = [1,2]
     elif name == "DeepARModel":
-        hp["lags"] = [70]
+        hp["lags"] = [96]
         hp["epochs"] = [5,10]
         hp["cell_type"] = ["LSTM", "GRU"]
-        hp["hidden_size"] = [8, 16, 32, 64]
+        hp["hidden_size"] = [8, 16, 64]
         hp["rnn_layers"] = [1,2,3]
-        hp["dropout"] = [0.1, 0.2, 0.3]
+        hp["dropout"] = [0.2]
     return hp
 
 

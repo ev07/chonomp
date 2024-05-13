@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 from tsGOMP import tsGOMP_OneAssociation, tsGOMP_train_val
 from associations import PearsonMultivariate, SpearmanMultivariate, LinearPartialCorrelation, ModelBasedPartialCorrelation
@@ -218,10 +219,10 @@ class ChronOMP(FeatureSelector):
     def _generate_optuna_search_space():
         hp = dict()
         hp["model"] = ["ARDL"]
-        hp["lags"] = [50]
-        hp["trend"] = ["c","ct"]
+        hp["lags"] = [20]
+        hp["trend"] = ["c"]
         hp["association"] = ["Pearson"]#,"Spearman"]
-        hp["significance_threshold"] = [1e-20, 1e-10,1e-7, 1e-5, 1e-4,1e-3, 1e-2,0.05]
+        hp["significance_threshold"] = [1e-20, 1e-10,1e-7, 1e-5, 1e-4,1e-3,0.005, 1e-2,0.05, 0.1]
         hp["method"] = ["f-test", "lr-test"]
         hp["max_features"] = [50]
         hp["valid_obs_param_ratio"] = [1.]
@@ -503,7 +504,7 @@ class GroupLasso(FeatureSelector):
                   "model_config":{
                       "group_reg": hyperparameters.get("group_reg", 0.001),
                       "l1_reg": hyperparameters.get("l1_reg", 0.001),
-                      "n_iter": hyperparameters.get("n_iter", 200),
+                      "n_iter": hyperparameters.get("n_iter", 100),
                       "tol": hyperparameters.get("tol", 1e-5)
                       }
                  }
@@ -517,8 +518,9 @@ class GroupLasso(FeatureSelector):
 
     def _generate_optuna_search_space():
         hp = dict()
-        hp["lags"] = [10]
-        hp["group_reg"] = [0.00001, 0.0001, 0.0003, 0.0005, 0.0007, 0.0009, 0.001,  0.0014, 0.0018, 0.0022, 0.0026,0.003,  0.0034, 0.0038, 0.0042, 0.0046, 0.005, 0.007, 0.009, 0.015, 0.02, 0.035, 0.005]
+        hp["lags"] = [20]
+        hp["group_reg"] = [0.01, 0.02, 0.05, 0.1,0.2, 0.4]
+        #hp["group_reg"] = [0.00001, 0.0001, 0.0003, 0.0005, 0.0007, 0.0009, 0.001,  0.0014, 0.0018, 0.0022, 0.0026,0.003,  0.0034, 0.0038, 0.0042, 0.0046, 0.005, 0.007, 0.009, 0.015, 0.02, 0.035, 0.005]
         hp["l1_reg"] = [1e-20]
         return hp
 
@@ -725,7 +727,7 @@ class VectorMRMR(FeatureSelector):
     def _complete_config_from_parameters(hyperparameters):
         config = {"lags": hyperparameters.get("lags", 10),
                   "num_features": hyperparameters.get("num_features",10),
-                  "config": {"alpha":hyperparameters.get("relevance", "rf"),
+                  "config": {"relevance":hyperparameters.get("relevance", "rf"),
                                    "redundancy":hyperparameters.get("redundancy", "c"),
                                    "denominator":hyperparameters.get("denominator", "mean")}
                   }
@@ -734,8 +736,8 @@ class VectorMRMR(FeatureSelector):
         hp = dict()
         hp["lags"] = trial.suggest_int("lags",5,50,1,log=False)
         hp["num_features"] = trial.suggest_int("num_features", 5, 100, log=True)
-        hp["relevance"] = trial.suggest_categorical(,["f","rf"])
-        hp["denominator"] = trial.suggest_categorical(,["mean","max"])
+        hp["relevance"] = trial.suggest_categorical("relevance",["f","rf"])
+        hp["denominator"] = trial.suggest_categorical("denominator",["mean","max"])
         return hp
 
     def _generate_optuna_search_space():
@@ -833,6 +835,8 @@ def complete_config_from_parameters(name, hyperparameters):
         config = SyPI._complete_config_from_parameters(hyperparameters)
     elif name == "GroupLasso":
         config = GroupLasso._complete_config_from_parameters(hyperparameters)
+    elif name == "VectorMRMR":
+        config = VectorMRMR._complete_config_from_parameters(hyperparameters)
     return config
     
     
@@ -854,6 +858,8 @@ def generate_optuna_parameters(name, trial):
         hp = SyPI._generate_optuna_parameters(trial)
     elif name == "GroupLasso":
         hp = GroupLasso._generate_optuna_parameters(trial)
+    elif name == "VectorMRMR":
+        hp = VectorMRMR._generate_optuna_parameters(trial)
     return hp
 
     
@@ -875,6 +881,8 @@ def generate_optuna_search_space(name):
         hp = SyPI._generate_optuna_search_space()
     elif name == "GroupLasso":
         hp = GroupLasso._generate_optuna_search_space()
+    elif name == "VectorMRMR":
+        hp = VectorMRMR._generate_optuna_search_space()
     return hp
 
 
