@@ -524,6 +524,8 @@ class GroupLasso(FeatureSelector):
         hp["l1_reg"] = [1e-20]
         return hp
 
+
+
 ##################################################################
 #                                                                #
 #               Recursive Feature Elimination                    #
@@ -812,6 +814,32 @@ class SyPI(FeatureSelector):
         hp["p_cond2"] = [0.001, 0.01, 0.05, 0.1]
         return hp
         
+
+##################################################################
+#                                                                #
+#                       No Selection Baseline                    #
+#                                                                #
+##################################################################
+
+
+
+class NoSelection(FeatureSelector):
+    def fit(self, data):
+        self.selected = list(data.columns)
+        return self.selected
+    
+    def get_selected_features(self):
+        return self.selected
+        
+    def _complete_config_from_parameters(hyperparameters):
+        return dict()
+        
+    def _generate_optuna_parameters(trial):
+        return dict()
+    
+    def _generate_optuna_search_space():
+        return dict()
+
 ##################################################################
 #                                                                #
 #   Create configs for completion and optuna                     #
@@ -837,6 +865,8 @@ def complete_config_from_parameters(name, hyperparameters):
         config = GroupLasso._complete_config_from_parameters(hyperparameters)
     elif name == "VectorMRMR":
         config = VectorMRMR._complete_config_from_parameters(hyperparameters)
+    elif name == "NoSelection":
+        config = NoSelection._complete_config_from_parameters(hyperparameters)
     return config
     
     
@@ -860,6 +890,8 @@ def generate_optuna_parameters(name, trial):
         hp = GroupLasso._generate_optuna_parameters(trial)
     elif name == "VectorMRMR":
         hp = VectorMRMR._generate_optuna_parameters(trial)
+    elif name == "NoSelection":
+        hp = NoSelection._generate_optuna_parameters(trial)
     return hp
 
     
@@ -883,6 +915,8 @@ def generate_optuna_search_space(name):
         hp = GroupLasso._generate_optuna_search_space()
     elif name == "VectorMRMR":
         hp = VectorMRMR._generate_optuna_search_space()
+     elif name == "NoSelection":
+        hp = NoSelection._generate_optuna_search_space()
     return hp
 
 

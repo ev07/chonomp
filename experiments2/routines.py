@@ -10,8 +10,9 @@ import numpy as np
 rootdir = '../'
 sys.path.append(rootdir)
 
-from baselines.estimators import Estimator, ARDLModel, SVRModel, KNeighborsRegressorModel, TFTModel, DeepARModel
-from baselines.feature_selection import ChronOMP, BivariateGranger, ModifiedRFE, VectorLassoLars, BackwardChronOMP, TrainTestChronOMP, GroupLasso, VectorMRMR
+from baselines.estimators import Estimator, ARDLModel, SVRModel, KNeighborsRegressorModel, DeepARModel, TFTModel
+from baselines.feature_selection import ChronOMP, BivariateGranger, ModifiedRFE, VectorLassoLars, BackwardChronOMP, TrainTestChronOMP, GroupLasso, VectorMRMR, NoSelection
+
 
 from data_opener import open_dataset_and_ground_truth
 
@@ -42,6 +43,7 @@ def get_FS(config_file):
             "VectorLassoLars":VectorLassoLars,
             "GroupLasso":GroupLasso,
             "ModifiedRFE":ModifiedRFE,
+            "NoSelection":NoSelection,
             "VectorMRMR":VectorMRMR}[fs_info["NAME"]]
     
     constructor = lambda target: algo(config, target)
