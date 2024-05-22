@@ -1,8 +1,8 @@
 import sys
 import os
 
-os.environ['OPENBLAS_NUM_THREAD']='10'
-os.environ['MKL_NUM_THREADS'] = '10'
+#os.environ['OPENBLAS_NUM_THREAD']='10'
+#os.environ['MKL_NUM_THREADS'] = '10'
 
 import time
 import pandas as pd

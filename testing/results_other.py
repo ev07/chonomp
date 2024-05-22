@@ -11,8 +11,8 @@ from data_opener import open_dataset_and_ground_truth
 from tuning.first_wave_main import setup_dataset
 from tuning.routines import compute_stats_selected
 
-from baselines.feature_selection import MultiSetChronOMP, VectorLassoLars, GroupLasso
-from baselines.estimators import ARDLModel, SVRModel
+from baselines.feature_selection import GroupLasso, NoSelection
+from baselines.estimators import ARDLModel, SVRModel, TFTModel, DeepARModel
 
 def full_results_generator(datasets, rootdir = "../", seed=0):
     
@@ -231,7 +231,16 @@ def hyperparam_setting(best_hyperparams, fs_version, cls_version):
     """
     # get config from the appropriate version
     best_hyperparams_copy = [x for x in best_hyperparams if x['FS']["NAME"]==fs_version]
-    best_hyperparams_copy = [x for x in best_hyperparams_copy if x['CLS']["NAME"]==cls_version]
+    if cls_version=="all":
+        curr = -np.inf
+        best_sol = []
+        for x in best_hyperparams_copy:
+            if x["R2"]>curr:
+                curr=x["R2"]
+                best_sol = [x]
+        best_hyperparms_copy = best_sol
+    else:
+        best_hyperparams_copy = [x for x in best_hyperparams_copy if x['CLS']["NAME"]==cls_version]
     best_hyperparams_copy = best_hyperparams_copy[0]
 
     return best_hyperparams_copy
@@ -258,7 +267,7 @@ def evaluate_metrics(fs_set, hyperparams, data_train, data_test, gt_cause_list, 
     data_test_selected = data_test[fs_set]
 
     forecaster_hp = hyperparams["CLS"]["CONFIG"]
-    forecaster_constructor = {"ARDLModel":ARDLModel, "SVRModel":SVRModel}[hyperparams["CLS"]["NAME"]]
+    forecaster_constructor = {"ARDLModel":ARDLModel, "SVRModel":SVRModel, "TFTModel":TFTModel, "DeepARModel":DeepARModel}[hyperparams["CLS"]["NAME"]]
     forecaster = forecaster_constructor(forecaster_hp, target)
     
     t = time.time()
@@ -308,7 +317,8 @@ def main_loop(dataset_to_use, test_fraction, fs_version, cls_version, recovery=T
         best_hyperparams_algo = hyperparam_setting(best_hyperparams, fs_version, cls_version)
         
         # launch the multiset learning with the hyperparameters
-        fs = {"GroupLasso":GroupLasso}[fs_version](best_hyperparams_algo["FS"]["CONFIG"], target)
+        config = best_hyperparams_algo["FS"]["CONFIG"] if "CONFIG" in best_hyperparams_algo["FS"] else dict()
+        fs = {"GroupLasso":GroupLasso,"NoSelection":NoSelection}[fs_version](config, target)
         
         # fit
         t = time.time()

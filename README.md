@@ -25,7 +25,20 @@ real datasets, ChronoEpilogi is shown to reduce the number of TS variables by 96
 ChronoEpilogi is on par with group Lasso performance, with the added benefit of
 providing multiple solutions.
 
+
+## Requirements
+
+`pip install -r requirements.txt`
+
 ## Exemple Usage
+
+Tuning is launched with 
+
+`./tuning/tuning.sh`
+
+and Testing with 
+
+`./testing/testing.sh`.
 
 
 
@@ -43,4 +56,6 @@ providing multiple solutions.
    - `results.py` and `results_other.py` implement respectively ChronoEpilogi multisolution evaluation and other fs algorithms evaluation.
    - `final_statistics.py` implement tuning record opening routines.
 
+## Contributing
 
+Our dataset is open source and free of use, under the licence provided in LICENSE.

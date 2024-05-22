@@ -12,7 +12,10 @@ from tuning.first_wave_main import setup_dataset
 from tuning.routines import compute_stats_selected
 
 from baselines.feature_selection import MultiSetChronOMP, VectorLassoLars
-from baselines.estimators import ARDLModel, SVRModel
+from baselines.estimators import ARDLModel, SVRModel, TFTModel, DeepARModel
+
+
+
 
 def full_results_generator(datasets, rootdir = "../", seed=0):
     
@@ -48,6 +51,9 @@ def full_results_generator(datasets, rootdir = "../", seed=0):
                 causal_list = cause_dict[target] if cause_dict is not None else None
                 
                 yield data_keys, data, dataset, filename, target, result_filename, causal_list
+
+
+
 
 
 def number_and_selected_sets_structure(fs_multi_instance):
@@ -176,7 +182,17 @@ def hyperparam_setting_chronomp(best_hyperparams, equivalence_threshold, equival
     # get config from the appropriate version
     fs_version = "ChronOMP" if equivalent_version == "fg" else "BackwardChronOMP"
     best_hyperparams_copy = [x for x in best_hyperparams if x['FS']["NAME"]==fs_version]
-    best_hyperparams_copy = [x for x in best_hyperparams_copy if x['CLS']["NAME"]==cls_version]
+    
+    if cls_version=="all":
+        curr = -np.inf
+        best_sol = []
+        for x in best_hyperparams_copy:
+            if x["R2"]>curr:
+                curr=x["R2"]
+                best_sol = [x]
+        best_hyperparams_copy = best_sol
+    else:
+        best_hyperparams_copy = [x for x in best_hyperparams_copy if x['CLS']["NAME"]==cls_version]
     best_hyperparams_copy = best_hyperparams_copy[0]
 
     best_hyperparams_copy['FS']["CONFIG"]["config"]["equivalence_threshold"] = equivalence_threshold
@@ -210,7 +226,7 @@ def evaluate_metrics(fs_set, hyperparams, data_train, data_test, gt_cause_list, 
     fs_stats = get_fs_stats(len(data_train.columns), fs_set, gt_cause_list, dataset)
 
     forecaster_hp = hyperparams["CLS"]["CONFIG"]
-    forecaster_constructor = {"ARDLModel":ARDLModel, "SVRModel":SVRModel}[hyperparams["CLS"]["NAME"]]
+    forecaster_constructor = {"ARDLModel":ARDLModel, "SVRModel":SVRModel, "TFTModel":TFTModel, "DeepARModel":DeepARModel}[hyperparams["CLS"]["NAME"]]
     forecaster = forecaster_constructor(forecaster_hp, target)
     
     t = time.time()
@@ -226,6 +242,126 @@ def evaluate_metrics(fs_set, hyperparams, data_train, data_test, gt_cause_list, 
     res["CLS_time"] = endtime
     res = {**res, **fs_stats}
     return res
+
+
+
+
+def main_loop(dataset_to_use, test_fraction, equivalence_threshold, equivalent_version, cls_version, recovery=True):
+    """
+    equivalent_version: version of the mutliset omp to apply (fg, fbg, fbc)
+    cls_version: version of the classifier to use (should also have been optimized for Lasso).
+    """
+
+    # if recovery is true, then initializes the result lists and filter the filename,target pairs
+    filter_done = []
+    allres = []
+    if recovery:
+        fname = "./results/allres-{}-{}-{}-{}-{}.csv".format(dataset_to_use, test_fraction, equivalence_threshold, equivalent_version, cls_version)
+        if os.path.isfile(fname):
+            allres = [pd.read_csv(fname)]
+            files_and_targets = allres[0][["filename","target"]].values
+            filter_done = [(x,str(y)) for x,y in files_and_targets]
+    print(filter_done)
+
+    for best_configs, data, dataset, filename, target, results_filename, gt_cause_list in full_results_generator([dataset_to_use]):
+        print(filename, target)
+        if (filename,target) in filter_done:
+            print("file,target computed already")
+            continue
+        
+        # get train and test splits
+        data_train, data_test = get_splitted_dataset(data, dataset, test_fraction)
+        
+        # get best hyperparams for each algorithm
+        best_hyperparams = get_best_hyperparameters_from_keys(results_filename, best_configs)
+        
+        # get best hyperparams for chronomp in a format suited to multiple subset chronomp version
+        best_hyperparams_chronomp = hyperparam_setting_chronomp(best_hyperparams, equivalence_threshold, equivalent_version, cls_version)
+        
+        # launch the multiset learning with the hyperparameters
+        fs = MultiSetChronOMP(best_hyperparams_chronomp["FS"]["CONFIG"], target, equivalent_version = equivalent_version, verbosity=0)
+        
+        # fit
+        t = time.time()
+        fs.fit(data_train)
+        end_time = time.time()-t
+        
+        
+        results = []
+        # get reference selected set
+        fs_set = fs.get_selected_features()
+        # compute forecasting and set selection stats
+        res = evaluate_metrics(fs_set, best_hyperparams_chronomp, data_train, data_test, gt_cause_list, dataset, filename, target)
+        # flag this solution as a reference set
+        res["reference_set"]=True
+        res["FS_time"] = end_time
+        results.append(res)
+        
+        #print(fs.instance.equivalent_variables)
+        #print(fs.instance.history)
+        #break
+        
+        # get sampled equivalent sets
+        print("begin equivalent set computation")
+        
+        n_total_sets, list_multi_set = number_and_selected_sets_structure(fs)
+        if n_total_sets<=20:
+            sampled_indexes = list(range(n_total_sets))
+        elif n_total_sets<=2**63: # n cannot be larger than int64 precision
+            sampled_indexes = np.random.choice(n_total_sets,20).tolist()
+        else:
+            sampled_indexes = np.random.choice(2**63,20).tolist()
+        sampled_sets = [get_selected_from_multiset_index(index, list_multi_set, n_total_sets) for index in sampled_indexes]
+        
+        
+        # for VARNoisyCopies, check the equivalence classes for any superfluous element
+        if dataset_to_use == "VARNoisyCopies":
+            diff = check_noisy_copies_dataset_anomalies(list_multi_set)
+            results[-1]["nb_anomalies_in_equiv_class"] = diff
+        # for VARNoisyCopies, check the equivalence classes for any nondetected element
+        if dataset_to_use == "VARNoisyCopies":
+            miss = check_noisy_copies_dataset_missing(list_multi_set)
+            results[-1]["nb_missing_in_equiv_class"] = miss
+        # for NoisyVAR, check the entire solution
+        if dataset_to_use in ["NoisyVAR_500","NoisyVAR_2500", "NoisyVAR_8000"]:
+            equiv_stats = check_NoisyVAR_solutions(list_multi_set, filename)
+            results[-1] = {**results[-1], **equiv_stats}
+            
+        
+        results[-1]["total_number_sets"] = n_total_sets
+        results[-1]["set_lengths"] = [len(x) for x in list_multi_set]
+        results[-1]["exp_solution"] = list_multi_set
+        
+        # evaluated predictive perf on test for each sampled set
+        for fs_set in sampled_sets:
+            res = evaluate_metrics(fs_set, best_hyperparams_chronomp, data_train, data_test, gt_cause_list, dataset, filename, target)
+            res["reference_set"]=False
+            results.append(res)
+        results = pd.DataFrame(results)
+        
+        allres.append(results)
+        
+        
+        curr = pd.concat(allres)
+        curr.to_csv("./results/allres-{}-{}-{}-{}-{}.csv".format(dataset, test_fraction, equivalence_threshold, equivalent_version, cls_version), index=False)
+                         
+        
+    allres = pd.concat(allres)
+    
+    return allres
+
+
+if __name__=="__main__":
+    _, dataset, test_fraction, equivalence_threshold, equivalent_version, cls_version = sys.argv
+    test_fraction = float(test_fraction)
+    equivalence_threshold = float(equivalence_threshold)
+
+    allres, lassores = main_loop(dataset, test_fraction, equivalence_threshold, equivalent_version, cls_version)
+    allres.to_csv("./results/allres-{}-{}-{}-{}-{}.csv".format(dataset, test_fraction, equivalence_threshold, equivalent_version, cls_version), index=False)
+    
+    
+    
+
 
 
 def main_loop(dataset_to_use, test_fraction, equivalence_threshold, equivalent_version, cls_version, recovery=True):
@@ -381,4 +517,5 @@ if __name__=="__main__":
     allres, lassores = main_loop(dataset, test_fraction, equivalence_threshold, equivalent_version, cls_version)
     allres.to_csv("./results/allres-{}-{}-{}-{}-{}.csv".format(dataset, test_fraction, equivalence_threshold, equivalent_version, cls_version), index=False)
     lassores.to_csv("./results/lassores-{}-{}-{}-{}-{}.csv".format(dataset, test_fraction, equivalence_threshold, equivalent_version, cls_version), index=False)
+
 
