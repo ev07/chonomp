@@ -14,11 +14,11 @@ from optuna.samplers import RandomSampler, GridSampler
 rootdir = '../'
 sys.path.append(rootdir)
 
-from experiments2.routines import full_experiment as launch_experiment
-from experiments2.routines import TargetNotSelectedError
+from tuning.routines import full_experiment as launch_experiment
+from tuning.routines import TargetNotSelectedError
 
-from experiments2.first_wave_main import fs_cls_pair_already_optimized, save_append
-from experiments2.first_wave_main import setup_dataset
+from tuning.first_wave_main import fs_cls_pair_already_optimized, save_append
+from tuning.first_wave_main import setup_dataset
 
 import baselines.estimators
 import baselines.feature_selection

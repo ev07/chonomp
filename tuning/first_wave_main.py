@@ -14,8 +14,8 @@ from optuna.samplers import RandomSampler, GridSampler
 rootdir = '../'
 sys.path.append(rootdir)
 
-from experiments2.routines import full_experiment as launch_experiment
-from experiments2.routines import TargetNotSelectedError
+from tuning.routines import full_experiment as launch_experiment
+from tuning.routines import TargetNotSelectedError
 
 import baselines.estimators
 import baselines.feature_selection

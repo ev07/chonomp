@@ -1,8 +1,8 @@
 import pandas as pd
 import sys
 sys.path.append("../")
-from experiments2.first_wave_main import setup_dataset
-from experiments2.routines import full_experiment
+from tuning.first_wave_main import setup_dataset
+from tuning.routines import full_experiment
 import numpy as np
 
 #####
