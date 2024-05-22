@@ -174,7 +174,7 @@ def setup_dataset(dataset_name, filename, target):
             "MAXIMUM_NUMBER_TARGETS": 10}
             }
         config["DATASET"]["HOLDOUT_RATIO"] = 0.9
-    elif dataset_name == "electricity":
+    elif dataset_name in ["electricity", "electricity_long"]:
         config = {"DATASET":{**config["DATASET"],
             "PATH": "monash/electricity",
             "CAUSES": "parents",
@@ -182,7 +182,9 @@ def setup_dataset(dataset_name, filename, target):
             "MAXIMUM_NUMBER_TARGETS": 10}
             }
         config["DATASET"]["HOLDOUT_RATIO"] = 0.9
-    elif dataset_name == "solar":
+        if dataset_name == "electricity_long":
+            config["DATASET"]["HOLDOUT_RATIO"] = 0.3
+    elif dataset_name in ["solar", "solar_long"]:
         config = {"DATASET":{**config["DATASET"],
             "PATH": "monash/solar",
             "CAUSES": "parents",
@@ -190,7 +192,9 @@ def setup_dataset(dataset_name, filename, target):
             "MAXIMUM_NUMBER_TARGETS": 10}
             }
         config["DATASET"]["HOLDOUT_RATIO"] = 0.9
-    elif dataset_name == "traffic":
+        if dataset_name == "solar_long":
+            config["DATASET"]["HOLDOUT_RATIO"] = 0.3
+    elif dataset_name in ["traffic","traffic_long"]:
         config = {"DATASET":{**config["DATASET"],
             "PATH": "monash/traffic",
             "CAUSES": "parents",
@@ -198,6 +202,8 @@ def setup_dataset(dataset_name, filename, target):
             "MAXIMUM_NUMBER_TARGETS": 10}
             }
         config["DATASET"]["HOLDOUT_RATIO"] = 0.9
+        if dataset_name == "traffic_long":
+            config["DATASET"]["HOLDOUT_RATIO"] = 0.3
     
     elif dataset_name == "size_4_gaussian":
         config = {"DATASET":{**config["DATASET"],
@@ -362,8 +368,6 @@ def full_experiment(dataset, fs_name, cls_name, experiment_identifier, seed=0):
                 t = time.time()-time_begin
                 print("\t\tOne variable took",t ,"seconds.")
                 print("\t\tEstimated time for whole pipeline:",len(target_set)*len(filelist)*t, "seconds")
-            if count>20:
-                return
 
 
 if __name__=="__main__":
