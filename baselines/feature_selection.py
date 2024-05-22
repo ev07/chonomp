@@ -1,18 +1,12 @@
 import numpy as np
 
-from tsGOMP import tsGOMP_OneAssociation, tsGOMP_train_val
+from ChronoEpilogi import ChronoEpilogi, ChronoEpilogi_train_val
 from associations import PearsonMultivariate, SpearmanMultivariate, LinearPartialCorrelation, ModelBasedPartialCorrelation
 from models import ARDLModel, SVRModel
 
-from sklearn.feature_selection import RFE
-from sklearn.svm import SVR
-from sklearn.linear_model import LassoLars
-from sklearn.feature_selection import SelectFromModel
-          
 from statsmodels.tsa.vector_ar.var_model import VAR
 
 import group_lasso
-import mrmr
 
 #from baselines.SyPI import SyPI_method
 
@@ -143,14 +137,14 @@ class FeatureSelector():
 ##################################################################  
         
 
-class ChronOMP(FeatureSelector):
+class ChronoEpilogi(FeatureSelector):
 
     selection_mode = "variable"  # the returned itemset consists in variables without lags.
 
     def __init__(self, config, target, verbosity=0):
         super().__init__(config,target)
         config = self._config_init()
-        self.instance = tsGOMP_OneAssociation(config, self.target, verbosity=verbosity)
+        self.instance = ChronoEpilogi(config, self.target, verbosity=verbosity)
         
     def _config_init(self):
         association_constructor = {"Pearson":PearsonMultivariate, "Spearman": SpearmanMultivariate}[self.config["association"]]
@@ -222,7 +216,7 @@ class ChronOMP(FeatureSelector):
         hp["trend"] = ["n","ct"]
         hp["association"] = ["Pearson"]#,"Spearman"]
         hp["significance_threshold"] = [1e-20, 1e-10, 1e-5, 1e-4]
-        hp["method"] = ["f-test", "lr-test"]
+        hp["method"] = ["lr-test"]
         hp["max_features"] = [50]
         hp["valid_obs_param_ratio"] = [1.]
         return hp
@@ -247,7 +241,7 @@ class BackwardChronOMP(ChronOMP):
     def _generate_optuna_search_space():
         hp = ChronOMP._generate_optuna_search_space()
         hp["lags"] = [10]
-        hp["method"] = ["f-test"]
+        hp["method"] = ["lr-test"]
         hp["significance_threshold"] = [1e-20, 1e-10, 1e-5, 1e-2]
         hp["significance_threshold_backward"] = [1e-20, 1e-10, 1e-5, 1e-2]
         hp["method_backward"] = ["lr-test"]
@@ -259,7 +253,7 @@ class MultiSetChronOMP(ChronOMP):
         self.target = target
         self.equivalent_version = version
         config = self._config_init()
-        self.instance = tsGOMP_OneAssociation(config, self.target, verbosity=verbosity)
+        self.instance = ChronoEpilogi(config, self.target, verbosity=verbosity)
         
     def _config_init(self):
         association_constructor = {"Pearson":PearsonMultivariate, "Spearman": SpearmanMultivariate}[self.config["association"]]
@@ -320,7 +314,7 @@ class TrainTestChronOMP(ChronOMP):
         self.config=config
         self.target = target
         config = self._config_init()
-        self.instance = tsGOMP_train_val(config, self.target)
+        self.instance = ChronoEpilogi_train_val(config, self.target)
         
     def _config_init(self):
         association_constructor = {"Pearson":PearsonMultivariate, "Spearman": SpearmanMultivariate}[self.config["association"]]
@@ -395,79 +389,6 @@ class TrainTestChronOMP(ChronOMP):
         hp["valid_obs_param_ratio"] = [1.]
         return hp
 
-##################################################################
-#                                                                #
-#                       Lasso with LARS                          #
-#                                                                #
-##################################################################   
-
-
-class VectorLassoLars(FeatureSelector):
-    """
-    Principle: Apply LassoLars on the vectorized data with a feature importance selector.
-    We get a list of selected (variable, lags).
-    Then, output the list of unique selected variables.
-    """
-    
-    selection_mode = "variable"  # the returned itemset consists in variables without lags.
-    
-    def __init__(self, config, target):
-        super().__init__(config,target)
-        self._model_init()
-    
-    def _model_init(self):
-        self.model = LassoLars(**self.config["model_config"])
-    
-    def fit(self, data):
-        X, y, _ = self.prepare_data_vectorize(data, self.config["lags"])
-        
-
-        # There can be an error if the number of feature given in argument is too large.
-        # Default strategy is to replace the parameter by the size of the feature space.
-        # A parameter can be given explicitely to raise an error in a custom class instead.
-        # This is where we handle it, with a custom error that we send back.
-        max_features = self.config["max_features"]
-        if max_features > X.shape[1] and not self.config.get("raiseMaximalSelectedError",False):
-            max_features = X.shape[1]
-        elif max_features > X.shape[1]:
-            raise MaximalSelectedError(max_features, X.shape[1])
-            
-        FS=SelectFromModel(estimator=self.model, threshold=self.config["threshold"], max_features=max_features)
-        FS = FS.fit(X, y)
-        
-        mask = FS.get_support(indices=False)
-        selected = self.vector_mask_to_columns(mask, data)
-        
-        return selected
-
-    def get_selected_features(self):
-        return self.selected
-
-    def _complete_config_from_parameters(hyperparameters):
-        config = {"lags": hyperparameters.get("lags", 10),
-                  "max_features": hyperparameters.get("max_features",10),
-                  "threshold": hyperparameters.get("threshold",0.0001),
-                  "model_config": {"alpha":hyperparameters.get("alpha", 1.),
-                                   "fit_intercept":True,
-                                   "fit_path":False}
-                  }
-        return config
-    def _generate_optuna_parameters(trial):
-        hp = dict()
-        hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
-        hp["max_features"] = trial.suggest_int("max_features", 5, 50, log=True)
-        hp["threshold"] = trial.suggest_float("threshold", 0.000001, 0.01, log=True)
-        hp["alpha"] = trial.suggest_float("alpha", 0.001, 10., log=True)
-        return hp
-
-    def _generate_optuna_search_space():
-        hp = dict()
-        hp["lags"] = [20]
-        hp["max_features"] = [50]
-        hp["threshold"] = [0.000001, 0.00001,  0.0001,  0.001, 0.01]
-        hp["alpha"] = [0.001, 0.01, 0.1, 1.,  10.]
-        return hp
-
 
 ##################################################################
 #                                                                #
@@ -524,107 +445,6 @@ class GroupLasso(FeatureSelector):
 
 
 
-##################################################################
-#                                                                #
-#               Recursive Feature Elimination                    #
-#                                                                #
-##################################################################
-
-
-
-
-class ModifiedRFE(FeatureSelector):
-    """
-    Principle: Apply RFE on the vectorized data. We get a list of selected (variable, lags).
-    Then, output the list of unique selected variables.
-    """
-    
-    selection_mode = "variable"  # the returned itemset consists in variables without lags.
-    
-    def __init__(self, config, target):
-        super().__init__(config,target)
-        self._model_init()
-    
-    def _model_init(self):
-        constructor = {"SVR":SVR}[self.config["model"]]
-        self.model = constructor(**self.config["model_config"])
-        
-    
-    def fit(self, data):
-        X, y, _ = self.prepare_data_vectorize(data, self.config["lags"])
-        
-        rfe=RFE(estimator=self.model, n_features_to_select=self.config["n_features_to_select"], step=self.config["step"])
-        rfe = rfe.fit(X, y)
-        
-        mask = np.array(rfe.support_)
-        selected = self.vector_mask_to_columns( mask, data)
-        return selected
-    
-    def get_selected_features(self):
-        return self.selected
-    
-    def _complete_config_from_parameters(hyperparameters):
-        default_model_config = {"kernel":hyperparameters.get("kernel", "rbf"),
-                              "degree":hyperparameters.get("degree", 3),
-                              "gamma":hyperparameters.get("gamma", "scale"),
-                              "coef0":hyperparameters.get("coef0", 0.),
-                              "tol":hyperparameters.get("tol", 0.001),
-                              "C":hyperparameters.get("C", 1.0),
-                              "epsilon":hyperparameters.get("epsilon", 0.1),
-                              "shrinking":True}
-                               
-        config = {"model": hyperparameters.get("model", "SVR"),
-                  "model_config": hyperparameters.get("model_config", default_model_config),
-                  "lags": hyperparameters.get("lags", 10),
-                  "n_features_to_select": hyperparameters.get("n_features_to_select", 10),
-                  "step": hyperparameters.get("step", 10)
-                 }
-        return config
-    
-    def _generate_optuna_parameters(trial):
-        hp["model"] = "SVR"
-        hp["n_features_to_select"] = trial.suggest_int("n_features_to_select", 5, 50, log=True)
-        hp["step"] = trial.suggest_int("step", 4, 10, log=False)
-        hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
-        hp["kernel"] = trial.suggest_categorical("kernel",["linear","rbf","poly", "sigmoid"])
-        hp["degree"] = trial.suggest_int("degree",2,5,1,log=False)
-        hp["coef0"] = trial.suggest_float("coef0", 0.01, 2., log=True)
-        hp["C"] = trial.suggest_float("C", 0.05, 20.,log=True)
-        return hp
-    
-    def _generate_optuna_search_space():
-        hp["lags"] = [5,10,15]
-        hp["model"] = ["SVR"]
-        hp["n_features_to_select"] = [1,2,3,4,5,6,7,8,10,15,20,30,40,50]
-        hp["step"] = [2, 4, 6, 8, 10]
-        hp["kernel"] = ["linear","rbf"]
-        hp["degree"] = [2]
-        hp["coef0"] = [0.01]
-        hp["C"] = [0.01, 0.1, 1., 10.]
-        return hp
-
-class RFE(ModifiedRFE):
-    """
-    The original RFE method.
-    """
-
-    selection_mode = "variable, lag"
-    
-    def fit(self, data):
-        X, y, _ = self.prepare_data_vectorize(data, self.config["lags"], self.target)
-        
-        rfe=RFE(estimator=self.model, n_features_to_select=self.config["n_features_to_select"], step=self.config["step"])
-        rfe = rfe.fit(X, y)
-        
-        mask = np.array(rfe.support_).reshape((-1,len(data.columns)))
-        selected=[]
-        for i in range(mask.shape[0]):
-            for j in range(mask.shape[1]):
-                if mask[i,j]:
-                    selected.append((data.columns[i],self.lags-j))
-        self.selected=selected
-        return selected
-
 
 
 ##################################################################
@@ -677,142 +497,9 @@ class BivariateGranger(FeatureSelector):
     def _generate_optuna_search_space():
         hp = dict()
         hp["maxlags"] = [5,10,15]
-        hp["alpha_level"] = [0.001, 0.01, 0.05,  0.1]
+        hp["alpha_level"] =  [0.00001, 0.0001, 0.0003, 0.0005, 0.0007, 0.0009, 0.001,  0.0014, 0.0018, 0.0022, 0.0026,0.003,  0.0034, 0.0038, 0.0042, 0.0046, 0.005, 0.007, 0.009, 0.05, 0.1]
         return hp
-        
-##################################################################
-#                                                                #
-#           Vectorized MRMR                                      #
-#                                                                #
-##################################################################
-
-class VectorMRMR(FeatureSelector):
-    """
-    Principle: Apply mRMR on the vectorized data.
-    We get a list of selected (variable, lags).
-    Then, output the list of unique selected variables.
-    """
-    
-    selection_mode = "variable"  # the returned itemset consists in variables without lags.
-    
-    def __init__(self, config, target):
-        super().__init__(config,target)
-    
-    def fit(self, data):
-        X, y, _ = self.prepare_data_vectorize(data, self.config["lags"])
-        X_df, y_series = pd.DataFrame(X), pd.Series(y)
-        
-
-        # There can be an error if the number of feature given in argument is too large.
-        # Default strategy is to replace the parameter by the size of the feature space.
-        # A parameter can be given explicitely to raise an error in a custom class instead.
-        # This is where we handle it, with a custom error that we send back.
-        num_features = self.config["num_features"]
-        
-        vector_selected = mrmr.pandas.mrmr_regression(
-            X_df, y_series, num_features,
-            cat_features=None,
-            only_same_domain=False, return_scores=False,
-            n_jobs=1, show_progress=False, **self.config["config"])
-        
-        mask = [var in vector_selected for var in X_df.columns]
-        
-        selected = self.vector_mask_to_columns(mask, data)
-        
-        return selected
-
-    def get_selected_features(self):
-        return self.selected
-
-    def _complete_config_from_parameters(hyperparameters):
-        config = {"lags": hyperparameters.get("lags", 10),
-                  "num_features": hyperparameters.get("num_features",10),
-                  "config": {"alpha":hyperparameters.get("relevance", "rf"),
-                                   "redundancy":hyperparameters.get("redundancy", "c"),
-                                   "denominator":hyperparameters.get("denominator", "mean")}
-                  }
-        return config
-    def _generate_optuna_parameters(trial):
-        hp = dict()
-        hp["lags"] = trial.suggest_int("lags",5,50,1,log=False)
-        hp["num_features"] = trial.suggest_int("num_features", 5, 100, log=True)
-        hp["relevance"] = trial.suggest_categorical("relevance",["f","rf"])
-        hp["denominator"] = trial.suggest_categorical("denominator",["mean","max"])
-        return hp
-
-    def _generate_optuna_search_space():
-        hp = dict()
-        hp["lags"] = [50]
-        hp["num_features"] = [5, 10, 20, 30, 50, 70, 100]
-        hp["relevance"] = ["rf"]
-        hp["denominator"] = ["mean","max"]
-        return hp
-
-##################################################################
-#                                                                #
-#                       SyPI                                     #
-#                                                                #
-##################################################################
-
-
-
-class SyPI(FeatureSelector):
-    def __init__(self, config, target):
-        super().__init__(config, target)
-        self.p_cond1 = config["p_cond1"]
-        self.p_cond2 = config["p_cond2"]
-        self.threshold_lasso = config["threshold_lasso"]
-        self.lags = config["lags"]
-    
-    
-    def fit(self, data):
-        # by default in SyPI, the target variable is the last one. We need to reorder the dataframe.
-        columns = [name for name in data.columns if name!=self.target]
-        columns = columns + [self.target]
-        # also, the type of data expected by the function is an np.array, with covariates in rows and timesteps in columns.
-        X = data[columns].values.T
-        
-        predicted_causes_indices = SyPI_method("scipy_lassoalgo",  # regression algorithm: only this choice implemented
-                    "linear",  # partial correlation algorithm: only this choice implemented
-                    False,  # do not normalize the data since this was done already as preprocessing
-                    None,  # no lambda parameter in the lasso used, instead chosen with AIC
-                    self.lags,
-                    self.p_cond1, 
-                    self.p_cond2, 
-                    self.threshold_lasso,
-                    None, None, None,  # no ground truth provided here
-                    X)
-        selected_column_names = list(np.array(columns)[predicted_causes_indices])
-        self.selected = selected_column_names
-        return self.selected
-    
-    def get_selected_features(self):
-        return self.selected
-        
-    def _complete_config_from_parameters(hyperparameters):
-        config = {"lags": hyperparameters.get("lags", 10),
-                  "p_cond1": hyperparameters.get("p_cond1",0.001),
-                  "p_cond2": hyperparameters.get("p_cond2",hyperparameters.get("p_cond1",0.001)),
-                  "threshold_lasso": hyperparameters.get("threshold_lasso",0.001)}
-        return config
-        
-    def _generate_optuna_parameters(trial):
-        hp = dict()
-        hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
-        hp["threshold_lasso"] = trial.suggest_float("threshold_lasso",0.00001, 0.1, log=True)
-        hp["p_cond1"] = trial.suggest_float("p_cond1",0.001,  0.1, log=True)
-        hp["p_cond2"] = trial.suggest_float("p_cond2",0.001,  0.1, log=True)
-        return hp
-    
-    def _generate_optuna_search_space():
-        hp = dict()
-        hp["lags"] = [5,10,15]
-        hp["threshold_lasso"] = [0.000001, 0.00001,  0.0001,  0.001, 0.01]
-        hp["p_cond1"] = [0.001, 0.01, 0.05, 0.1]
-        hp["p_cond2"] = [0.001, 0.01, 0.05, 0.1]
-        return hp
-        
-
+     
 ##################################################################
 #                                                                #
 #                       No Selection Baseline                    #
@@ -851,14 +538,8 @@ def complete_config_from_parameters(name, hyperparameters):
         config = BackwardChronOMP._complete_config_from_parameters(hyperparameters)
     elif name == "TrainTestChronOMP":
         config = TrainTestChronOMP._complete_config_from_parameters(hyperparameters)
-    elif name == "ModifiedRFE" or name == "RFE":
-        config = ModifiedRFE._complete_config_from_parameters(hyperparameters)
     elif name == "BivariateGranger":
         config = BivariateGranger._complete_config_from_parameters(hyperparameters)
-    elif name == "VectorLassoLars":
-        config = VectorLassoLars._complete_config_from_parameters(hyperparameters)
-    elif name == "SyPI":
-        config = SyPI._complete_config_from_parameters(hyperparameters)
     elif name == "GroupLasso":
         config = GroupLasso._complete_config_from_parameters(hyperparameters)
     elif name == "NoSelection":
@@ -874,14 +555,8 @@ def generate_optuna_parameters(name, trial):
         hp = BackwardChronOMP._generate_optuna_parameters(trial)
     elif name == "TrainTestChronOMP":
         hp = TrainTestChronOMP._generate_optuna_parameters(trial)
-    elif name == "ModifiedRFE" or name == "RFE":
-        hp = ModifiedRFE._generate_optuna_parameters(trial)
     elif name == "BivariateGranger":
         hp = BivariateGranger._generate_optuna_parameters(trial)
-    elif name == "VectorLassoLars":
-        hp = VectorLassoLars._generate_optuna_parameters(trial)
-    elif name == "SyPI":
-        hp = SyPI._generate_optuna_parameters(trial)
     elif name == "GroupLasso":
         hp = GroupLasso._generate_optuna_parameters(trial)
     elif name == "NoSelection":
@@ -897,14 +572,8 @@ def generate_optuna_search_space(name):
         hp = BackwardChronOMP._generate_optuna_search_space()
     elif name == "TrainTestChronOMP":
         hp = TrainTestChronOMP._generate_optuna_search_space()
-    elif name == "ModifiedRFE" or name == "RFE":
-        hp = ModifiedRFE._generate_optuna_search_space()
     elif name == "BivariateGranger":
         hp = BivariateGranger._generate_optuna_search_space()
-    elif name == "VectorLassoLars":
-        hp = VectorLassoLars._generate_optuna_search_space()
-    elif name == "SyPI":
-        hp = SyPI._generate_optuna_search_space()
     elif name == "GroupLasso":
         hp = GroupLasso._generate_optuna_search_space()
      elif name == "NoSelection":

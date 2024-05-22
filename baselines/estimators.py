@@ -3,7 +3,6 @@ import os
 
 from sklearn.svm import SVR
 from sklearn.neighbors import KNeighborsRegressor
-from sklearn.linear_model import LassoLars
 import pandas as pd
 import numpy as np
 
@@ -37,10 +36,7 @@ class Estimator():
         self.target = target
     
     def fit_predict(self, data_train, data_test):
-        """retourne une series pandas correspondant aux valeurs estimés sur le jeu de donnée de test
-         1) 
-        """
-        
+        # to be implemented within classes  
         return None
     
     
@@ -147,11 +143,6 @@ class KNeighborsRegressorModel(SKLearnVectorized):
         self.lags = config["lags"]
         self.model = KNeighborsRegressor(**config["skconfig"])
         
-class LassoLarsModel(SKLearnVectorized):
-     def __init__(self, config, target):
-        self.target = target
-        self.lags = config["lags"]
-        self.model = LassoLars(**config["skconfig"])
 
         
         
@@ -312,11 +303,6 @@ def complete_config_from_parameters(name, hyperparameters):
                               "leaf_size":hyperparameters.get("leaf_size", 30),
                               "p":hyperparameters.get("p", 2),
                               "metric":"minkowski"}}
-    elif name == "LassoLarsModel":
-        config = {"lags":hyperparameters.get("lags", 10),
-                  "skconfig":{"alpha":hyperparameters.get("alpha", 1.),
-                              "fit_intercept":True,
-                              "fit_path":False}}
     elif name == "TFTModel":
         config = {"lags":hyperparameters.get("lags", 70),
                   "epochs":hyperparameters.get("epochs", 5),
@@ -357,9 +343,6 @@ def generate_optuna_parameters(name, trial):
         hp["weights"] = trial.suggest_categorical("weights",["uniform", "distance"])
         hp["leaf_size"] = trial.suggest_int("leaf_size",20,50,1,log=True)
         hp["p"] = trial.suggest_int("p", 1, 2, 1, log=False)
-    elif name == "LassoLarsModel":
-        hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
-        hp["alpha"] = trial.suggest_float("alpha", 0.001, 10., log=True)
     elif name == "TFTModel":
         hp["lags"] = trial.suggest_int("lags",5,70,1,log=False)
         hp["epochs"] = trial.suggest_int("epochs",5,10,1,log=False)
@@ -384,21 +367,18 @@ def generate_optuna_search_space(name):
         hp["lags"] = [10]
         hp["trend"] = ["c"]
     elif name == "SVRModel":
-        hp["lags"] = [50]
+        hp["lags"] = [96]
         hp["kernel"] = ["rbf", "sigmoid"]
         hp["coef0"] = [0.0]
-        hp["C"] = [ 0.1, 1., 10.]
+        hp["C"] = [ 0.01, 0.1, 1., 10., 100.]
     elif name == "KNeighborRegressorModel":
-        hp["lags"] = [20]
+        hp["lags"] = [96]
         hp["n_neighbors"] = [5,  10,  50]
         hp["weights"] = trial.suggest_categorical("weights",["uniform", "distance"])
         hp["leaf_size"] = [20, 50]
         hp["p"] = [ 1, 2]
-    elif name == "LassoLarsModel":
-        hp["lags"] = [20]
-        hp["alpha"] = [0.001,0.01, 0.1,  1.,  10.]
     elif name == "TFTModel":
-        hp["lags"] = [70]
+        hp["lags"] = [96]
         hp["epochs"] = [5,10]
         hp["hidden_size"] = [8,16,32,64]
         hp["attention_head_size"] = [1,2,4]
@@ -406,7 +386,7 @@ def generate_optuna_search_space(name):
         hp["hidden_continuous_size"] = [8]
         hp["lstm_layers"] = [1,2]
     elif name == "DeepARModel":
-        hp["lags"] = [70]
+        hp["lags"] = [96]
         hp["epochs"] = [5,10]
         hp["cell_type"] = ["LSTM", "GRU"]
         hp["hidden_size"] = [8, 16, 32, 64]
