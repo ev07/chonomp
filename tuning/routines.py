@@ -11,7 +11,7 @@ rootdir = '../'
 sys.path.append(rootdir)
 
 from baselines.estimators import Estimator, ARDLModel, SVRModel, KNeighborsRegressorModel, DeepARModel, TFTModel
-from baselines.feature_selection import ChronOMP, BivariateGranger, ModifiedRFE, VectorLassoLars, BackwardChronOMP, TrainTestChronOMP, GroupLasso, VectorMRMR, NoSelection
+from baselines.feature_selection import ChronOMP, BackwardChronOMP, TrainTestChronOMP, GroupLasso, NoSelection
 
 from data_opener import open_dataset_and_ground_truth
 
@@ -38,12 +38,8 @@ def get_FS(config_file):
     algo = {"ChronOMP":ChronOMP,
             "BackwardChronOMP":BackwardChronOMP,
             "TrainTestChronOMP": TrainTestChronOMP,
-            "BivariateGranger":BivariateGranger,
-            "VectorLassoLars":VectorLassoLars,
             "GroupLasso":GroupLasso,
-            "ModifiedRFE":ModifiedRFE,
-            "NoSelection":NoSelection,
-            "VectorMRMR":VectorMRMR}[fs_info["NAME"]]
+            "NoSelection":NoSelection}[fs_info["NAME"]]
     
     constructor = lambda target: algo(config, target)
     descriptors = flatten_dict(fs_info,name="FS")

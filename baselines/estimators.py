@@ -190,11 +190,15 @@ class PytorchForecaster(Estimator):
         return None
     
     def fit(self, data):
+        data=data.dropna(axis=1)
         dts, train_loader = self._prepare_data(data)
         self.offset=len(data)
         self.model = self._create_model(dts)
         self.lightning_trainer = pl.Trainer(max_epochs=self.config["epochs"],
-                                       accelerator="gpu", devices=1)
+                                       accelerator="gpu", devices=1,
+                                       enable_progress_bar=False,
+                                       enable_model_summary=False,
+                                       enable_checkpointing=False)
         
         self.lightning_trainer.fit(
             self.model,
@@ -275,7 +279,7 @@ class DeepARModel(PytorchForecaster):
 
 def complete_config_from_parameters(name, hyperparameters):
     if name == "ARDLModel":
-        config = { "constructor" : {"lags":hyperparameters.get("lags", 10),
+        config = { "constructor" : {"lags":hyperparameters.get("forecaster_lags", 10),
                                     "order":hyperparameters.get("order", 10),
                                     "causal":True,
                                     "trend":hyperparameters.get("trend", "ct"),
@@ -286,7 +290,7 @@ def complete_config_from_parameters(name, hyperparameters):
                             "cov_kwds":hyperparameters.get("cov_kwds", None)}
                  }
     elif name == "SVRModel":
-        config = {"lags":hyperparameters.get("lags", 10),
+        config = {"lags":hyperparameters.get("forecaster_lags", 10),
                   "skconfig":{"kernel":hyperparameters.get("kernel", "rbf"),
                               "degree":hyperparameters.get("degree", 3),
                               "gamma":hyperparameters.get("gamma", "scale"),
@@ -296,7 +300,7 @@ def complete_config_from_parameters(name, hyperparameters):
                               "epsilon":hyperparameters.get("epsilon", 0.1),
                               "shrinking":True}}
     elif name == "KNeighborsRegressorModel":
-        config = {"lags":hyperparameters.get("lags", 10),
+        config = {"lags":hyperparameters.get("forecaster_lags", 10),
                   "skconfig":{"n_neighbors":hyperparameters.get("n_neighbors", 5),
                               "weights":hyperparameters.get("weights", "uniform"),
                               "algorithm":hyperparameters.get("algorithm", "auto"),
@@ -304,7 +308,7 @@ def complete_config_from_parameters(name, hyperparameters):
                               "p":hyperparameters.get("p", 2),
                               "metric":"minkowski"}}
     elif name == "TFTModel":
-        config = {"lags":hyperparameters.get("lags", 70),
+        config = {"lags":hyperparameters.get("forecaster_lags", 70),
                   "epochs":hyperparameters.get("epochs", 5),
                   "config":{"hidden_size":hyperparameters.get("hidden_size", 16),
                             "lstm_layers":hyperparameters.get("lstm_layers", 2),
@@ -316,7 +320,7 @@ def complete_config_from_parameters(name, hyperparameters):
             }
         
     elif name == "DeepARModel":
-        config = {"lags":hyperparameters.get("lags", 70),
+        config = {"lags":hyperparameters.get("forecaster_lags", 70),
                   "epochs":hyperparameters.get("epochs", 5),
                   "config":{"cell_type" : hyperparameters.get("cell_type", "LSTM"),
                             "hidden_size" : hyperparameters.get("hidden_size", 8),
@@ -328,32 +332,32 @@ def complete_config_from_parameters(name, hyperparameters):
 def generate_optuna_parameters(name, trial):
     hp = dict()
     if name == "ARDLModel":
-        hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
-        hp["order"] = hp["lags"]
+        hp["forecaster_lags"] = trial.suggest_int("forecaster_lags",5,20,step=1,log=False)
+        hp["order"] = hp["forecaster_lags"]
         hp["trend"] = trial.suggest_categorical("trend",["n","t","c", "ct"])
     elif name == "SVRModel":
-        hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
+        hp["forecaster_lags"] = trial.suggest_int("forecaster_lags",5,20,step=1,log=False)
         hp["kernel"] = trial.suggest_categorical("kernel",["linear","rbf","poly", "sigmoid"])
         #hp["degree"] = trial.suggest_int("degree",2,5,1,log=False)
         hp["coef0"] = trial.suggest_float("coef0", 0.0, 2.)
         hp["C"] = trial.suggest_float("C", 0.05, 20., log=True)
     elif name == "KNeighborsRegressorModel":
-        hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
+        hp["forecaster_lags"] = trial.suggest_int("forecaster_lags",5,20,step=1,log=False)
         hp["n_neighbors"] = trial.suggest_int("n_neighbors",3,20,1,log=True)
         hp["weights"] = trial.suggest_categorical("weights",["uniform", "distance"])
         hp["leaf_size"] = trial.suggest_int("leaf_size",20,50,1,log=True)
         hp["p"] = trial.suggest_int("p", 1, 2, 1, log=False)
     elif name == "TFTModel":
-        hp["lags"] = trial.suggest_int("lags",5,70,1,log=False)
-        hp["epochs"] = trial.suggest_int("epochs",5,10,1,log=False)
+        hp["forecaster_lags"] = trial.suggest_int("forecaster_lags",5,70,step=1,log=False)
+        hp["epochs"] = trial.suggest_int("epochs",5,10,step=1,log=False)
         hp["hidden_size"] = trial.suggest_int("hidden_size",8,64,log=True)
-        hp["attention_head_size"] = trial.suggest_int("attention_head_size",1,4,1,log=False)
+        hp["attention_head_size"] = trial.suggest_int("attention_head_size",1,4,step=1,log=False)
         hp["dropout"] = trial.suggest_float("dropout", 0.1, 0.5, log=False)
         hp["hidden_continuous_size"] = trial.suggest_int("hidden_continuous_size",4,32,log=True)
         hp["lstm_layers"] = trial.suggest_categorical("lstm_layers",[1,2,3])
     elif name == "DeepARModel":
-        hp["lags"] = trial.suggest_int("lags",5,70,1,log=False)
-        hp["epochs"] = trial.suggest_int("epochs",5,10,1,log=False)
+        hp["forecaster_lags"] = trial.suggest_int("forecaster_lags",5,70,step=1,log=False)
+        hp["epochs"] = trial.suggest_int("epochs",5,10,step=1,log=False)
         hp["cell_type"] = trial.suggest_categorical("cell_type",["LSTM", "GRU"])
         hp["hidden_size"] = trial.suggest_int("hidden_size",8,64,log=True)
         hp["rnn_layers"] = trial.suggest_categorical("rnn_layers",[1,2,3])
@@ -364,21 +368,21 @@ def generate_optuna_parameters(name, trial):
 def generate_optuna_search_space(name):
     hp = dict()
     if name == "ARDLModel":
-        hp["lags"] = [10]
+        hp["forecaster_lags"] = [10]
         hp["trend"] = ["c"]
     elif name == "SVRModel":
-        hp["lags"] = [96]
+        hp["forecaster_lags"] = [96]
         hp["kernel"] = ["rbf", "sigmoid"]
         hp["coef0"] = [0.0]
         hp["C"] = [ 0.01, 0.1, 1., 10., 100.]
     elif name == "KNeighborRegressorModel":
-        hp["lags"] = [96]
+        hp["forecaster_lags"] = [96]
         hp["n_neighbors"] = [5,  10,  50]
         hp["weights"] = trial.suggest_categorical("weights",["uniform", "distance"])
         hp["leaf_size"] = [20, 50]
         hp["p"] = [ 1, 2]
     elif name == "TFTModel":
-        hp["lags"] = [96]
+        hp["forecaster_lags"] = [96]
         hp["epochs"] = [5,10]
         hp["hidden_size"] = [8,16,32,64]
         hp["attention_head_size"] = [1,2,4]
@@ -386,7 +390,7 @@ def generate_optuna_search_space(name):
         hp["hidden_continuous_size"] = [8]
         hp["lstm_layers"] = [1,2]
     elif name == "DeepARModel":
-        hp["lags"] = [96]
+        hp["forecaster_lags"] = [96]
         hp["epochs"] = [5,10]
         hp["cell_type"] = ["LSTM", "GRU"]
         hp["hidden_size"] = [8, 16, 32, 64]

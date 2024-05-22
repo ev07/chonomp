@@ -20,6 +20,8 @@ from tuning.routines import TargetNotSelectedError
 from tuning.first_wave_main import fs_cls_pair_already_optimized, save_append
 from tuning.first_wave_main import setup_dataset
 
+from tuning.final_statistics import val_all_methods_best_configuration, get_best_hyperparameters_from_keys
+
 import baselines.estimators
 import baselines.feature_selection
 from data_opener import open_dataset_and_ground_truth
@@ -29,6 +31,7 @@ from baselines.feature_selection import MaximalSelectedError
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 
+
 def get_best_fs_params(fs_name, proxy_cls_name, best_hyperparams):
     best_hyperparams_copy = [x for x in best_hyperparams if x['FS']["NAME"]==fs_name]
     best_hyperparams_copy = [x for x in best_hyperparams_copy if x['CLS']["NAME"]==proxy_cls_name]
@@ -36,20 +39,19 @@ def get_best_fs_params(fs_name, proxy_cls_name, best_hyperparams):
     return best_hyperparams_copy["FS"]
 
 
-def setup_config(trial, fs_name, cls_name, proxy_cls_name):
+def setup_config(trial, res_filename, fs_name, cls_name, proxy_cls_name, metric):
     cls_conf = baselines.estimators.generate_optuna_parameters(cls_name, trial)
     cls_conf = baselines.estimators.complete_config_from_parameters(cls_name, cls_conf)
     
     # find the configuration of the fs_algo from the proxy cls optimization
-    all_best_configs = val_all_methods_best_configuration(filename, metric, direction="max")
-    all_best_hyperparams = get_best_hyperparameters_from_keys(filename, all_best_configs)
+    all_best_configs = val_all_methods_best_configuration(res_filename, metric, direction="max")
+    all_best_hyperparams = get_best_hyperparameters_from_keys(res_filename, all_best_configs)
     
-    fs_conf = gest_best_fs_params(fs_name, proxy_cls_name, all_best_hyperparams)
+    fs_conf = get_best_fs_params(fs_name, proxy_cls_name, all_best_hyperparams)
 
     config = {"CLS":{"NAME":cls_name,
            "CONFIG":cls_conf},
-     "FS":{"NAME":fs_name,
-           "CONFIG":fs_conf},
+     "FS":fs_conf,
      "FOLDS":{"NUMBER_FOLDS": 5,
               "WINDOW_SIZE": 0.4,
               "STRATEGY": "fixed_start"}
@@ -63,7 +65,8 @@ def generate_optuna_objective_function(fs_name, cls_name, proxy_cls_name, datase
     def optuna_objective_function(trial):
         if trial.number%1 == 0:
             print("\t\t\tTrial number", trial.number)
-        config_file = setup_config(trial, fs_name, cls_name, proxy_cls_name)
+        res_filename = dataset_setup["DATASET"]["NAME"]+"_" +os.path.splitext(dataset_setup["DATASET"]["FILENAME"])[0]+"_"+dataset_setup["DATASET"]["TARGET"]+".csv"
+        config_file = setup_config(trial, res_filename, fs_name, cls_name, proxy_cls_name, metric=objective)
         config_file = {**config_file, **dataset_setup}
         
         config_name = fs_name + "_" + cls_name + "_" + str(trial.number)
@@ -127,6 +130,8 @@ def full_experiment(dataset, fs_name, cls_name, proxy_cls_name, experiment_ident
         for target in target_set:
             print("\tTarget", target, "beggining")
             count+=1
+            if count%3!=2:
+                continue
             
             # check if results for the given target of the given file have already been computed
             if fs_cls_pair_already_optimized(dataset, fs_name, cls_name, filename, target, experiment_identifier):
@@ -141,11 +146,11 @@ def full_experiment(dataset, fs_name, cls_name, proxy_cls_name, experiment_ident
             cls_space = baselines.estimators.generate_optuna_search_space(cls_name)
         
             # GridSampler launch
-            studylength = np.prod([len(x) for _,x in space.items()])
+            studylength = np.prod([len(x) for _,x in cls_space.items()])
             if first_evaluation_flag:
                 print("\t\tNumber of configurations to be evaluated:",studylength)
             objective, results = generate_optuna_objective_function(fs_name, cls_name, proxy_cls_name, dataset_setup)
-            study = optuna.create_study(sampler=GridSampler(space))
+            study = optuna.create_study(sampler=GridSampler(cls_space))
             study.optimize(objective, n_trials=studylength)
             
             #results contains all the training information from the trials
@@ -173,7 +178,6 @@ def full_experiment(dataset, fs_name, cls_name, proxy_cls_name, experiment_ident
 
 
 if __name__=="__main__":
-    _, data, fs, model, experiment_identifier = sys.argv
+    _, data, fs, model, proxy_model, experiment_identifier = sys.argv
     print(data)
-    full_experiment(data, fs, model, experiment_identifier)
-
+    full_experiment(data, fs, model,proxy_model, experiment_identifier)

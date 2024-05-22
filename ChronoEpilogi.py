@@ -12,7 +12,7 @@ import numpy as np
 
 
 
-class ChronoEpilogi(tsGOMP_AutoRegressive):
+class ChronoEpilogi():
     def __init__(self, config, target, verbosity=0):
         """
         In this version, the first residuals are computed on an autoregressive model.

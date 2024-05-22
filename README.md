@@ -38,8 +38,9 @@ providing multiple solutions.
    - `first_wave_main.py` implements paired tuning of feature selection algorithm and forecaster.
    - `second_wave_main.py` implements tuning of a forecaster for an already tuned feature selection algorithm.
    - `routines.py` implement shared elements between tuning routines.
+   - `final_statistics.py` implement tuning record opening routines.
  - Final evaluation on a test set is implemented in folder `\testing\`:
-   - `results.py` and `results_other.py` implement respectively ChronoEpilogi evaluation and other fs algorithms evaluation.
-   - `final_statistics.py` implement tuning record opening routines
+   - `results.py` and `results_other.py` implement respectively ChronoEpilogi multisolution evaluation and other fs algorithms evaluation.
+   - `final_statistics.py` implement tuning record opening routines.
 
 

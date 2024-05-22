@@ -137,7 +137,7 @@ class FeatureSelector():
 ##################################################################  
         
 
-class ChronoEpilogi(FeatureSelector):
+class ChronOMP(FeatureSelector):
 
     selection_mode = "variable"  # the returned itemset consists in variables without lags.
 
@@ -199,7 +199,7 @@ class ChronoEpilogi(FeatureSelector):
     def _generate_optuna_parameters(trial):
         hp = dict()
         hp["model"] = "ARDL"
-        hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
+        hp["lags"] = trial.suggest_int("lags",5,96,step=1,log=False)
         hp["order"] = hp["lags"]
         hp["trend"] = trial.suggest_categorical("trend",["n","t","c", "ct"])
         hp["association"] = trial.suggest_categorical("association",["Pearson","Spearman"])
@@ -212,10 +212,10 @@ class ChronoEpilogi(FeatureSelector):
     def _generate_optuna_search_space():
         hp = dict()
         hp["model"] = ["ARDL"]
-        hp["lags"] = [20]
+        hp["lags"] = [10]
         hp["trend"] = ["n","ct"]
         hp["association"] = ["Pearson"]#,"Spearman"]
-        hp["significance_threshold"] = [1e-20, 1e-10, 1e-5, 1e-4]
+        hp["significance_threshold"] = [1e-20, 1e-10,1e-7, 1e-5, 1e-4,1e-3,0.005, 1e-2,0.05, 0.1]
         hp["method"] = ["lr-test"]
         hp["max_features"] = [50]
         hp["valid_obs_param_ratio"] = [1.]
@@ -242,8 +242,8 @@ class BackwardChronOMP(ChronOMP):
         hp = ChronOMP._generate_optuna_search_space()
         hp["lags"] = [10]
         hp["method"] = ["lr-test"]
-        hp["significance_threshold"] = [1e-20, 1e-10, 1e-5, 1e-2]
-        hp["significance_threshold_backward"] = [1e-20, 1e-10, 1e-5, 1e-2]
+        hp["significance_threshold"] = [1e-20, 1e-10, 1e-5, 1e-3, 1e-2]
+        hp["significance_threshold_backward"] = [ 1e-20, 1e-10, 1e-5,1e-3,0.003, 1e-2,0.05]
         hp["method_backward"] = ["lr-test"]
         return hp
 
@@ -364,7 +364,7 @@ class TrainTestChronOMP(ChronOMP):
     def _generate_optuna_parameters(trial):
         hp = dict()
         hp["model"] = "SVR"
-        hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
+        hp["lags"] = trial.suggest_int("lags",5,20,step=1,log=False)
         hp["kernel"] = trial.suggest_categorical("kernel",["linear","rbf","poly", "sigmoid"])
         hp["coef0"] = trial.suggest_float("coef0", 0.0, 2.)
         hp["C"] = trial.suggest_float("C", 0.05, 20., log=True)
@@ -431,7 +431,7 @@ class GroupLasso(FeatureSelector):
         return config
     def _generate_optuna_parameters(trial):
         hp = dict()
-        hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
+        hp["lags"] = trial.suggest_int("lags",5,96,step=1,log=False)
         hp["group_reg"] = trial.suggest_float("group_reg",1e-20,1,log=True)
         hp["l1_reg"] = trial.suggest_float("l1_reg",1e-20,1,log=True)
         return hp
@@ -490,7 +490,7 @@ class BivariateGranger(FeatureSelector):
         
     def _generate_optuna_parameters(trial):
         hp = dict()    
-        hp["maxlags"] = trial.suggest_int("maxlags",5,20,1,log=False)
+        hp["maxlags"] = trial.suggest_int("maxlags",5,96,step=1,log=False)
         hp["alpha_level"] = trial.suggest_float("alpha_level",0.0001,  0.1, log=True)
         return hp
     
@@ -576,7 +576,7 @@ def generate_optuna_search_space(name):
         hp = BivariateGranger._generate_optuna_search_space()
     elif name == "GroupLasso":
         hp = GroupLasso._generate_optuna_search_space()
-     elif name == "NoSelection":
+    elif name == "NoSelection":
         hp = NoSelection._generate_optuna_search_space()
     return hp
 
