@@ -3,8 +3,6 @@ from scipy.special import stdtr
 from statsmodels.regression.linear_model import OLS
 import pingouin
 
-#from mass_ts import mass2
-
 import numpy as np
 import pandas as pd
 
@@ -22,183 +20,16 @@ class Association:
         pass
 
 
-class PearsonCorrelation(Association):
-    """
-    Data assumption:
-     - dataframe is sorted by timestamp increasing
-     - timestamps are equidistant
-     - data does not have missing values
-     - can currently only process single-sample data.
-    
-    config:
-     - return_type (str):
-       - p-value: the returned association is minus the p-value
-       - coefficient: the returned association is a correlation coefficient
-     - lags (int): the maximal lag of the variable to use.
-        if set to 0, only the immediate correlation is computed.
-        if > 0, the lag of maximal correlation / minimal p-value amongst the lags is selected.
-     - selection_rule (str): the rule to use to aggregate the lags
-       - max: use maximal correlation/ min p-value (max norm on correlation function / best p-value)
-       - average: use average correlation (integral on correlation function)
-    """
-    def _select_rows_with_lag(self, residuals_df, variable_df, lag):
-        """
-        This function selects and align valid rows of the residuals and the evaluated variable.
-        It uses indexes to compare the two dataframe, and use integer location to compute the lag.
-        This part specifically needs observations to be sorted and equidistants in time.
-        """
-        # select valid residuals (exclude nan)
-        residuals_df = residuals_df[~residuals_df.isnull().any(axis=1)]
-        # select the right lag and corresponding rows in both dataframe
-        residuals_indexes = set(residuals_df.index)
-        variable_ilocs = [i for i in range(variable_df.shape[0]) if variable_df.index[i] in residuals_indexes]
-        selected_lagged_ilocs = [i-lag for i in variable_ilocs if i-lag >= 0]
-        selected_residual_indexes = [variable_df.index[i+lag] for i in selected_lagged_ilocs]
-        res = residuals_df.loc[selected_residual_indexes].values
-        var = variable_df.iloc[selected_lagged_ilocs].values
-        return res.reshape((-1,)), var.reshape((-1,))
-    
-    def association(self, residuals_df, variable_df):
-        measures = np.zeros((self.config["lags"]+1,))
-        
-        for lag in range(self.config["lags"]+1):
-            res, var = self._select_rows_with_lag(residuals_df, variable_df, lag)
-            r, p = pearsonr(res, var)
-            
-            if self.config["return_type"] == "p-value":
-                measures[lag] = -p
-            elif self.config["return_type"] == "coefficient":
-                measures[lag] = abs(r)
-                
-        if self.config["selection_rule"] == "max":
-            return np.max(measures)
-        elif self.config["selection_rule"] == "average":
-            return np.mean(measures)
-
-
-class SpearmanCorrelation(Association):
-    """
-    Data assumption:
-     - dataframe is sorted by timestamp increasing
-     - timestamps are equidistants
-     - data can have missing values, they will be ignored.
-     - can currently only process single-sample data.
-    
-    config:
-     - return_type (str):
-       - p-value: the returned association is minus the p-value
-       - coefficient: the returned association is a correlation coefficient
-     - lags (int): the maximal lag of the variable to use.
-        if set to 0, only the immediate correlation is computed.
-        if > 0, the lag of maximal correlation / minimal p-value amongst the lags is selected.
-     - selection_rule: the rule to use to aggregate the lags
-       - max: use maximal correlation/ min p-value (max norm on correlation function / best p-value)
-       - average: use average correlation (integral on correlation function)
-    """
-    def _select_rows_with_lag(self, residuals_df, variable_df, lag):
-        """
-        This function selects and align valid rows of the residuals and the evaluated variable.
-        It uses indexes to compare the two dataframe, and use integer location to compute the lag.
-        This part specifically needs observations to be sorted and equidistants in time.
-        """
-        # select valid residuals (exclude nan)
-        residuals_df = residuals_df[~residuals_df.isnull().any(axis=1)]
-        # select the right lag and corresponding rows in both dataframe
-        residuals_indexes = set(residuals_df.index)
-        variable_ilocs = [i for i in range(variable_df.shape[0]) if variable_df.index[i] in residuals_indexes]
-        selected_lagged_ilocs = [i-lag for i in variable_ilocs if i-lag >= 0]
-        selected_residual_indexes = [variable_df.index[i+lag] for i in selected_lagged_ilocs]
-        res = residuals_df.loc[selected_residual_indexes].values
-        var = variable_df.iloc[selected_lagged_ilocs].values
-        return res.reshape((-1,)), var.reshape((-1,))
-        
-    def association(self, residuals_df, variable_df):
-        measures = np.zeros((self.config["lags"]+1,))
-        
-        for lag in range(self.config["lags"]+1):
-            res, var = self._select_rows_with_lag(residuals_df, variable_df, lag)
-            r, p = spearmanr(res, var, nan_policy="omit")
-            
-            if self.config["return_type"] == "p-value":
-                measures[lag] = -p
-            elif self.config["return_type"] == "coefficient":
-                measures[lag] = abs(r)
-                
-        if self.config["selection_rule"] == "max":
-            return np.max(measures)
-        elif self.config["selection_rule"] == "average":
-            return np.mean(measures)
-
-
-
-class UsingMASS(Association):
-    """
-    Computes for each lag up to <lags> of the given variable, its <return_type> with the residuals.
-    The result is then aggregated into a single score using <selection_rule>.
-
-        Prefered use case:
-         - many lags have to be computed
-
-        Data assumption:
-         - dataframe is sorted by timestamp increasing
-         - timestamps are equidistants
-         - data has no missing value
-         - can currently only process single-sample data.
-         - the last <lags> values of the tested variable will be excluded.
-         - the first values of the tested variable will be excluded, depending on the LearningModel lag, to correspond
-           to residuals.
-
-        config:
-         - return_type (str):
-           - distance: the computed association is minus the normalized euclidean distance
-           - correlation: the computed association is the pearson correlation
-           - p-value: the computed association is the p-value of the pearson correlation
-         - lags (int): the maximal lag of the variable to use.
-            if set to 0, only the immediate correlation is computed.
-            if > 0, the lag of maximal correlation / minimal p-value amongst the lags is selected.
-         - selection_rule: the rule to use to aggregate the lags
-           - max: use maximal correlation / min distance / minimal p-value
-           - average: use average correlation / average distance / average p-value
-        """
-
-    def _select_correct_rows(self, residuals_df, variable_df):
-        # need to adjust the time axis of both dataframes
-        residuals_df = residuals_df[~residuals_df.isnull().any(axis=1)]
-        residuals_indexes = set(residuals_df.index)
-        variable_ilocs = [i for i in range(variable_df.shape[0]) if (variable_df.index[i] in residuals_indexes)]
-        variable_ilocs = variable_ilocs[:-self.config["lags"]]
-        residual = residuals_df.values.reshape((-1,))
-        variable = variable_df.iloc[variable_ilocs].values.reshape((-1,))
-        return residual, variable
-
-    def association(self, residuals_df, variable_df):
-        residual, variable = self._select_correct_rows(residuals_df, variable_df)
-
-        coefficients = mass2(residual, variable)  # compute distances
-
-        if self.config["return_type"] == "correlation":
-            coefficients = 1 - np.absolute(coefficients)**2 / (2 * len(variable))
-        elif self.config["return_type"] == "p-value":
-            coefficients = 1 - np.absolute(coefficients)**2 / (2 * len(variable))
-            # next 3 lines taken from scipy.stats.pearsonr
-            ab = len(variable)/2 - 1
-            beta_distribution = beta(ab, ab, loc=-1, scale=2)
-            coefficients = - 2 * beta_distribution.sf(np.abs(coefficients))
-        else:
-            coefficients = - coefficients
-
-        if self.config["selection_rule"] == "max":
-            return np.max(coefficients)
-        elif self.config["selection_rule"] == "average":
-            return np.mean(coefficients)
-            
 ########################################################################
 #
-#
+#   Implementation of the MASS-TS adaptation
 #
 ########################################################################
 
+# see https://pypi.org/project/mass-ts/
 
+# modified code under Apache Software License 2.0.
+# Licence is included.
 
 def rolling_window(a, window):
     shape = a.shape[:-1] + (a.shape[-1] - window + 1, window)
@@ -241,6 +72,13 @@ def mass2_modified(ts, query):
 
     return correlation
 
+
+
+########################################################################
+#
+#   Implementation of the Pearson/Spearman correlation routine
+#
+########################################################################
 
 class PearsonMultivariate(Association):
     """
@@ -358,9 +196,11 @@ class SpearmanMultivariate(PearsonMultivariate):
             return np.mean(coefficients, axis=-1)
 
 
+
+
 ##########
 #
-#   Approximate (residual based) partial correlation test for the residuals.
+#   Approximate (residual based) partial correlation test for the residuals. ChronoEpilogi-FE version only.
 #
 ##########
 
@@ -427,7 +267,15 @@ class LinearPartialCorrelation():
             return np.min(pvals, axis=-1)
         elif self.config["selection_rule"] == "average":
             return np.mean(pvals, axis=-1)
-            
+
+
+##########
+#
+#   Approximate (residual based) model lr-test for the residuals. ChronoEpilogi-FE version only.
+#
+##########
+
+ 
 class ModelBasedPartialCorrelation(LinearPartialCorrelation):
     """
     Compute using two models and a lr-test, whether the candidate is redundant given the condition.
