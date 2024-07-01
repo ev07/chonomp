@@ -9,13 +9,15 @@ import numpy as np
 
 from sklearn.metrics import mean_absolute_percentage_error
 
-from pytorch_forecasting import Baseline, TemporalFusionTransformer, TimeSeriesDataSet, DeepAR
+from pytorch_forecasting import Baseline, TemporalFusionTransformer, TimeSeriesDataSet, DeepAR, RecurrentNetwork
 from pytorch_forecasting.data import GroupNormalizer
 from pytorch_forecasting.metrics import MAE, SMAPE, PoissonLoss, QuantileLoss, RMSE
 try:
     import lightning.pytorch as pl
 except ImportError:
     import pytorch_lightning as pl
+    
+
 
 rootdir = '../'
 sys.path.append(rootdir)
@@ -203,7 +205,10 @@ class PytorchForecaster(Estimator):
         self.offset=len(data)
         self.model = self._create_model(dts)
         self.lightning_trainer = pl.Trainer(max_epochs=self.config["epochs"],
-                                       accelerator="gpu", devices=1)
+                                       accelerator="gpu", devices=1,
+                                       enable_progress_bar=False,
+                                       enable_model_summary=False,
+                                       enable_checkpointing=False)
         
         self.lightning_trainer.fit(
             self.model,
@@ -275,6 +280,14 @@ class DeepARModel(PytorchForecaster):
         return model
 
 
+class LSTMModel(DeepARModel):
+    def _create_model(self, dts):
+        model = RecurrentNetwork.from_dataset(
+            dts,
+            loss=RMSE(),
+            **self.config["config"]
+        )
+        return model
 
 ##################################################################
 #                                                                #
@@ -329,7 +342,7 @@ def complete_config_from_parameters(name, hyperparameters):
                   }
             }
         
-    elif name == "DeepARModel":
+    elif name == "DeepARModel" or name == "LSTMModel":
         config = {"lags":hyperparameters.get("lags", 70),
                   "epochs":hyperparameters.get("epochs", 5),
                   "config":{"cell_type" : hyperparameters.get("cell_type", "LSTM"),
@@ -346,7 +359,7 @@ def generate_optuna_parameters(name, trial):
         hp["order"] = hp["lags"]
         hp["trend"] = trial.suggest_categorical("trend",["n","t","c", "ct"])
     elif name == "SVRModel":
-        hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
+        hp["lags"] = trial.suggest_int("lags",5,96,1,log=False)
         hp["kernel"] = trial.suggest_categorical("kernel",["linear","rbf","poly", "sigmoid"])
         #hp["degree"] = trial.suggest_int("degree",2,5,1,log=False)
         hp["coef0"] = trial.suggest_float("coef0", 0.0, 2.)
@@ -361,15 +374,15 @@ def generate_optuna_parameters(name, trial):
         hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
         hp["alpha"] = trial.suggest_float("alpha", 0.001, 10., log=True)
     elif name == "TFTModel":
-        hp["lags"] = trial.suggest_int("lags",5,70,1,log=False)
+        hp["lags"] = trial.suggest_int("lags",5,96,1,log=False)
         hp["epochs"] = trial.suggest_int("epochs",5,10,1,log=False)
         hp["hidden_size"] = trial.suggest_int("hidden_size",8,64,log=True)
         hp["attention_head_size"] = trial.suggest_int("attention_head_size",1,4,1,log=False)
         hp["dropout"] = trial.suggest_float("dropout", 0.1, 0.5, log=False)
         hp["hidden_continuous_size"] = trial.suggest_int("hidden_continuous_size",4,32,log=True)
         hp["lstm_layers"] = trial.suggest_categorical("lstm_layers",[1,2,3])
-    elif name == "DeepARModel":
-        hp["lags"] = trial.suggest_int("lags",5,70,1,log=False)
+    elif name == "DeepARModel" or name == "LSTMModel":
+        hp["lags"] = trial.suggest_int("lags",5,96,1,log=False)
         hp["epochs"] = trial.suggest_int("epochs",5,10,1,log=False)
         hp["cell_type"] = trial.suggest_categorical("cell_type",["LSTM", "GRU"])
         hp["hidden_size"] = trial.suggest_int("hidden_size",8,64,log=True)
@@ -384,34 +397,34 @@ def generate_optuna_search_space(name):
         hp["lags"] = [10]
         hp["trend"] = ["c"]
     elif name == "SVRModel":
-        hp["lags"] = [50]
-        hp["kernel"] = ["rbf", "sigmoid"]
+        hp["lags"] = [10]
+        hp["kernel"] = ["rbf"] # ["rbf", "sigmoid"]
         hp["coef0"] = [0.0]
-        hp["C"] = [ 0.1, 1., 10.]
-    elif name == "KNeighborRegressorModel":
-        hp["lags"] = [20]
-        hp["n_neighbors"] = [5,  10,  50]
-        hp["weights"] = trial.suggest_categorical("weights",["uniform", "distance"])
-        hp["leaf_size"] = [20, 50]
+        hp["C"] = [ 1.] # [0.1, 1., 10.]
+    elif name == "KNeighborsRegressorModel":
+        hp["lags"] = [10]
+        hp["n_neighbors"] = [10]
+        hp["weights"] = ["uniform", "distance"]
+        hp["leaf_size"] = [20]
         hp["p"] = [ 1, 2]
     elif name == "LassoLarsModel":
         hp["lags"] = [20]
         hp["alpha"] = [0.001,0.01, 0.1,  1.,  10.]
     elif name == "TFTModel":
-        hp["lags"] = [70]
+        hp["lags"] = [10]#[96]
         hp["epochs"] = [5,10]
-        hp["hidden_size"] = [8,16,32,64]
-        hp["attention_head_size"] = [1,2,4]
+        hp["hidden_size"] = [8]#[8,16,64]
+        hp["attention_head_size"] = [1,2]#[1,2,4]
         hp["dropout"] = [0.2]
-        hp["hidden_continuous_size"] = [8]
-        hp["lstm_layers"] = [1,2]
-    elif name == "DeepARModel":
-        hp["lags"] = [70]
-        hp["epochs"] = [5,10]
-        hp["cell_type"] = ["LSTM", "GRU"]
-        hp["hidden_size"] = [8, 16, 32, 64]
-        hp["rnn_layers"] = [1,2,3]
-        hp["dropout"] = [0.1, 0.2, 0.3]
+        hp["hidden_continuous_size"] = [4]#[8]
+        hp["lstm_layers"] = [1]#[1,2]
+    elif name == "DeepARModel" or name == "LSTMModel":
+        hp["lags"] = [10]#[96]
+        hp["epochs"] = [1,2,3,5,10]
+        hp["cell_type"] = ["LSTM"]#["LSTM", "GRU"]
+        hp["hidden_size"] = [8,16,32]#[8, 16, 64]
+        hp["rnn_layers"] = [1,2]#[1,2,3]
+        hp["dropout"] = [0.1]#[0.2]
     return hp
 
 

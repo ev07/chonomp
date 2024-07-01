@@ -246,8 +246,8 @@ def setup_config(trial, fs_name, cls_name):
            "CONFIG":cls_conf},
      "FS":{"NAME":fs_name,
            "CONFIG":fs_conf},
-     "FOLDS":{"NUMBER_FOLDS": 5,
-              "WINDOW_SIZE": 0.4,
+     "FOLDS":{"NUMBER_FOLDS": 1,#5,
+              "WINDOW_SIZE": 0.8, #0.4,
               "STRATEGY": "fixed_start"}
     }
     return config
@@ -296,7 +296,7 @@ def full_experiment(dataset, fs_name, cls_name, experiment_identifier, seed=0):
     rng = np.random.default_rng(seed)
     start_time = time.time()
     
-    filelist = list(os.listdir(rootdir + "data/" + data_dir + "/"))
+    filelist = sorted(list(os.listdir(rootdir + "data/" + data_dir + "/")))
     
     first_evaluation_flag = True  # flag for the first call to objective, to get time estimation.
     count = 0
@@ -362,8 +362,6 @@ def full_experiment(dataset, fs_name, cls_name, experiment_identifier, seed=0):
                 t = time.time()-time_begin
                 print("\t\tOne variable took",t ,"seconds.")
                 print("\t\tEstimated time for whole pipeline:",len(target_set)*len(filelist)*t, "seconds")
-            if count>20:
-                return
 
 
 if __name__=="__main__":
