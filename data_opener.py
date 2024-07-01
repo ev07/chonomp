@@ -137,11 +137,11 @@ def open_dataset_and_ground_truth(dataset_name: str,
     elif dataset_name=="equivalence_datasets/NoisyVAR":
         df = pd.read_csv(rootdir + "/data/" + dataset_name + "/" + filename, compression="gzip")
         df.columns = [str(i) for i in df.columns]
-    elif dataset_name=="GNN_benchmark/PEMS-BAY":
+    elif dataset_name=="GNN_benchmarks/PEMS-BAY":
         df = pd.read_csv(rootdir + "/data/" + dataset_name + "/" + filename, compression="gzip")
         df = df[df.columns[1:]]  # exclude time 
         df.columns = [str(i) for i in df.columns]
-    elif dataset_name=="GNN_benchmark/METR-LA":
+    elif dataset_name=="GNN_benchmarks/METR-LA":
         df = pd.read_csv(rootdir + "/data/" + dataset_name + "/" + filename, compression="gzip")
         df = df[df.columns[1:]]  # exclude time
         df.columns = [str(i) for i in df.columns]
@@ -305,7 +305,7 @@ def open_dataset_and_ground_truth(dataset_name: str,
         return df, var_names, None, None
     elif dataset_name in ["monash/solar", "monash/electricity", "monash/traffic", "monash/weather", "monash/temperature_rain"]:
         return df, var_names, None, None
-    elif dataset_name in ["GNN_benchmark/PEMS-BAY", "GNN_benchmark/METR-LA"]:
+    elif dataset_name in ["GNN_benchmarks/PEMS-BAY", "GNN_benchmarks/METR-LA"]:
         return df, var_names, None, None
     
     
