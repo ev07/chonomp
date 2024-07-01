@@ -1,8 +1,8 @@
 import sys
 import os
 
-os.environ['OPENBLAS_NUM_THREAD']='3'
-os.environ['MKL_NUM_THREADS'] = '3'
+#os.environ['OPENBLAS_NUM_THREAD']='3'
+#os.environ['MKL_NUM_THREADS'] = '3'
 
 import time
 import pandas as pd
@@ -310,6 +310,10 @@ def full_experiment(dataset, fs_name, cls_name, experiment_identifier, seed=0):
     for i,filename in enumerate(filelist):
         if not os.path.isfile(rootdir + "data/" + data_dir + "/" + filename):
             continue
+            
+        if int(filename.split(".")[0].split("_")[1]) not in list(range(30,60))+list(range(120,150))+list(range(210,240)):
+            continue
+            
         print("New file",filename ,"time since begining is", time.time()-start_time, "(", i, "/", len(filelist), ")")
         
         _, var, _, _ = open_dataset_and_ground_truth(data_dir, filename, "parents", rootdir, skip_causal_step=True)
@@ -326,8 +330,6 @@ def full_experiment(dataset, fs_name, cls_name, experiment_identifier, seed=0):
         for target in target_set:
             print("\tTarget", target, "beggining")
             count+=1
-            if count!=10:
-                continue
             
             # check if results for the given target of the given file have already been computed
             if fs_cls_pair_already_optimized(dataset, fs_name, cls_name, filename, target, experiment_identifier):
@@ -351,7 +353,6 @@ def full_experiment(dataset, fs_name, cls_name, experiment_identifier, seed=0):
             study = optuna.create_study(sampler=GridSampler(space))
             study.optimize(objective, n_trials=studylength)
             
-            
             #results contains all the training information from the trials
             filename_xt = os.path.splitext(filename)[0]
             #print(results)
@@ -371,8 +372,6 @@ def full_experiment(dataset, fs_name, cls_name, experiment_identifier, seed=0):
                 t = time.time()-time_begin
                 print("\t\tOne variable took",t ,"seconds.")
                 print("\t\tEstimated time for whole pipeline:",len(target_set)*len(filelist)*t, "seconds")
-            #if count>20:
-            #    return
 
 
 if __name__=="__main__":

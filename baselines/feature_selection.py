@@ -824,6 +824,7 @@ class SyPI(FeatureSelector):
 
 
 class NoSelection(FeatureSelector):
+    selection_mode = "variable"
     def fit(self, data):
         self.selected = list(data.columns)
         return self.selected
@@ -915,7 +916,7 @@ def generate_optuna_search_space(name):
         hp = GroupLasso._generate_optuna_search_space()
     elif name == "VectorMRMR":
         hp = VectorMRMR._generate_optuna_search_space()
-     elif name == "NoSelection":
+    elif name == "NoSelection":
         hp = NoSelection._generate_optuna_search_space()
     return hp
 

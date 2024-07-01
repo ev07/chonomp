@@ -10,7 +10,7 @@ import numpy as np
 rootdir = '../'
 sys.path.append(rootdir)
 
-from baselines.estimators import Estimator, ARDLModel, SVRModel, KNeighborsRegressorModel, DeepARModel, TFTModel
+from baselines.estimators import Estimator, ARDLModel, SVRModel, KNeighborsRegressorModel, DeepARModel, TFTModel, LSTMModel
 from baselines.feature_selection import ChronOMP, BivariateGranger, ModifiedRFE, VectorLassoLars, BackwardChronOMP, TrainTestChronOMP, GroupLasso, VectorMRMR, NoSelection
 
 
@@ -60,6 +60,7 @@ def get_CLS(config_file):
     "SVRModel": SVRModel, 
     "KNeighborsRegressorModel": KNeighborsRegressorModel,
     "TFTModel":TFTModel,
+    "LSTMModel":LSTMModel,
     "DeepARModel":DeepARModel
     }[name]
     
