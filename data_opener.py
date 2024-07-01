@@ -139,11 +139,11 @@ def open_dataset_and_ground_truth(dataset_name: str,
         df.columns = [str(i) for i in df.columns]
     elif dataset_name=="GNN_benchmark/PEMS-BAY":
         df = pd.read_csv(rootdir + "/data/" + dataset_name + "/" + filename, compression="gzip")
-        df = df[df.columns[1:]]  # exclude time 
+        df = df[df.columns[2:]]  # exclude time 
         df.columns = [str(i) for i in df.columns]
     elif dataset_name=="GNN_benchmark/METR-LA":
         df = pd.read_csv(rootdir + "/data/" + dataset_name + "/" + filename, compression="gzip")
-        df = df[df.columns[1:]]  # exclude time
+        df = df[df.columns[2:]]  # exclude time
         df.columns = [str(i) for i in df.columns]
         
     else:
