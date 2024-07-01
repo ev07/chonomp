@@ -198,6 +198,23 @@ def setup_dataset(dataset_name, filename, target):
             "MAXIMUM_NUMBER_TARGETS": 10}
             }
         config["DATASET"]["HOLDOUT_RATIO"] = 0.9
+        
+    elif dataset_name == "pems-bay":
+        config = {"DATASET":{**config["DATASET"],
+            "PATH": "GNN_benchmark/PEMS-BAY",
+            "CAUSES": "parents",
+            "TARGET_CHOICE": "sampling",
+            "MAXIMUM_NUMBER_TARGETS": 10}
+            }
+        config["DATASET"]["HOLDOUT_RATIO"] = 0.8 # like original
+    elif dataset_name == "metr-la":
+        config = {"DATASET":{**config["DATASET"],
+            "PATH": "GNN_benchmark/METR-LA",
+            "CAUSES": "parents",
+            "TARGET_CHOICE": "sampling",
+            "MAXIMUM_NUMBER_TARGETS": 10}
+            }
+        config["DATASET"]["HOLDOUT_RATIO"] = 0.8 # like original
     
     elif dataset_name == "size_4_gaussian":
         config = {"DATASET":{**config["DATASET"],
