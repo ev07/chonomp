@@ -397,33 +397,37 @@ def generate_optuna_search_space(name):
         hp["lags"] = [96]
         hp["trend"] = ["c"]
     elif name == "SVRModel":
-        hp["lags"] = [20]
+        hp["lags"] = [96]
         hp["kernel"] = ["rbf"] # ["rbf", "sigmoid"]
         hp["coef0"] = [0.0]
         hp["C"] = [ 1.] # [0.1, 1., 10.]
     elif name == "KNeighborRegressorModel":
         hp["lags"] = [20]
         hp["n_neighbors"] = [5,  10,  50]
-        hp["weights"] = trial.suggest_categorical("weights",["uniform", "distance"])
+        hp["weights"] = ["uniform", "distance"]
         hp["leaf_size"] = [20, 50]
         hp["p"] = [ 1, 2]
     elif name == "LassoLarsModel":
         hp["lags"] = [20]
         hp["alpha"] = [0.001,0.01, 0.1,  1.,  10.]
     elif name == "TFTModel":
-        hp["lags"] = [10]#[96]
+        hp["lags"] = [96]
         hp["epochs"] = [5,10]
-        hp["hidden_size"] = [8]#[8,16,64]
-        hp["attention_head_size"] = [1,2]#[1,2,4]
+        hp["hidden_size"] =[8,16,64]
+        hp["attention_head_size"] = [1,2,4]
         hp["dropout"] = [0.2]
-        hp["hidden_continuous_size"] = [4]#[8]
-        hp["lstm_layers"] = [1]#[1,2]
+        hp["hidden_continuous_size"] = [4,8]
+        hp["lstm_layers"] = [1,2]
     elif name == "DeepARModel" or name == "LSTMModel":
-        hp["lags"] = [10]#[96]
+        hp["lags"] = [96]
         hp["epochs"] = [5,10]
         hp["cell_type"] = ["LSTM"]#["LSTM", "GRU"]
-        hp["hidden_size"] = [16]#[8, 16, 64]
-        hp["rnn_layers"] = [1]#[1,2,3]
+        hp["hidden_size"] = [8, 16, 64]
+        hp["rnn_layers"] = [1,2,3]
+        hp["epochs"] = [5,10]
+        hp["cell_type"] = ["LSTM"]#["LSTM", "GRU"]
+        hp["hidden_size"] = [8,16,32]#[8, 16, 64]
+        hp["rnn_layers"] = [1,2]#[1,2,3]
         hp["dropout"] = [0.1]#[0.2]
     return hp
 

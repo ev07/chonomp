@@ -204,6 +204,23 @@ def setup_dataset(dataset_name, filename, target):
         config["DATASET"]["HOLDOUT_RATIO"] = 0.9
         if dataset_name == "traffic_long":
             config["DATASET"]["HOLDOUT_RATIO"] = 0.3
+        
+    elif dataset_name == "pems-bay":
+        config = {"DATASET":{**config["DATASET"],
+            "PATH": "GNN_benchmarks/PEMS-BAY",
+            "CAUSES": "parents",
+            "TARGET_CHOICE": "sampling",
+            "MAXIMUM_NUMBER_TARGETS": 10}
+            }
+        config["DATASET"]["HOLDOUT_RATIO"] = 0.8 # like original
+    elif dataset_name == "metr-la":
+        config = {"DATASET":{**config["DATASET"],
+            "PATH": "GNN_benchmarks/METR-LA",
+            "CAUSES": "parents",
+            "TARGET_CHOICE": "sampling",
+            "MAXIMUM_NUMBER_TARGETS": 10}
+            }
+        config["DATASET"]["HOLDOUT_RATIO"] = 0.8 # like original
     
     elif dataset_name == "size_4_gaussian":
         config = {"DATASET":{**config["DATASET"],
@@ -252,8 +269,8 @@ def setup_config(trial, fs_name, cls_name):
            "CONFIG":cls_conf},
      "FS":{"NAME":fs_name,
            "CONFIG":fs_conf},
-     "FOLDS":{"NUMBER_FOLDS": 5,
-              "WINDOW_SIZE": 0.4,
+     "FOLDS":{"NUMBER_FOLDS": 1,#5,
+              "WINDOW_SIZE": 0.8, #0.4,
               "STRATEGY": "fixed_start"}
     }
     return config
@@ -302,7 +319,7 @@ def full_experiment(dataset, fs_name, cls_name, experiment_identifier, seed=0):
     rng = np.random.default_rng(seed)
     start_time = time.time()
     
-    filelist = list(os.listdir(rootdir + "data/" + data_dir + "/"))
+    filelist = sorted(list(os.listdir(rootdir + "data/" + data_dir + "/")))
     
     first_evaluation_flag = True  # flag for the first call to objective, to get time estimation.
     count = 0
@@ -310,9 +327,10 @@ def full_experiment(dataset, fs_name, cls_name, experiment_identifier, seed=0):
     for i,filename in enumerate(filelist):
         if not os.path.isfile(rootdir + "data/" + data_dir + "/" + filename):
             continue
-            
-        if int(filename.split(".")[0].split("_")[1]) not in list(range(30,60))+list(range(120,150))+list(range(210,240)):
-            continue
+        
+        # HERE UNCOMMENT FOR 100-VARIABLES SYNTHETIC DATASETS
+        #if int(filename.split(".")[0].split("_")[1]) not in list(range(30,60))+list(range(120,150))+list(range(210,240)):
+        #    continue
             
         print("New file",filename ,"time since begining is", time.time()-start_time, "(", i, "/", len(filelist), ")")
         
