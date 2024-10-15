@@ -141,7 +141,7 @@ def full_experiment(dataset, fs_name, cls_name, proxy_cls_name, experiment_ident
             cls_space = baselines.estimators.generate_optuna_search_space(cls_name)
         
             # GridSampler launch
-            studylength = np.prod([len(x) for _,x in space.items()])
+            studylength = np.prod([len(x) for _,x in cls_space.items()])
             if first_evaluation_flag:
                 print("\t\tNumber of configurations to be evaluated:",studylength)
             objective, results = generate_optuna_objective_function(fs_name, cls_name, proxy_cls_name, dataset_setup)

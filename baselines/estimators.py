@@ -4,6 +4,8 @@ import os
 from sklearn.svm import SVR
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.linear_model import LassoLars
+from xgboost import XGBRegressor
+
 import pandas as pd
 import numpy as np
 
@@ -155,8 +157,11 @@ class LassoLarsModel(SKLearnVectorized):
         self.lags = config["lags"]
         self.model = LassoLars(**config["skconfig"])
 
-        
-        
+class XGBRegressorModel(SKLearnVectorized):
+    def __init__(self, config, target):
+        self.target = target
+        self.lags = config["lags"]
+        self.model = XGBRegressor(**config["skconfig"])
         
         
 ##################################################################
@@ -330,6 +335,15 @@ def complete_config_from_parameters(name, hyperparameters):
                   "skconfig":{"alpha":hyperparameters.get("alpha", 1.),
                               "fit_intercept":True,
                               "fit_path":False}}
+    elif name == "XGBRegressorModel":
+        config = {"lags":hyperparameters.get("lags", 10),
+                  "skconfig":{"n_estimators":hyperparameters.get("n_estimators",10),
+                              "verbosity":hyperparameters.get("verbosity",0),
+                              "n_jobs":hyperparameters.get("n_jobs",5),
+                              "colsample_bytree":hyperparameters.get("colsample_bytree",1),
+                              "reg_alpha":hyperparameters.get("reg_alpha",0),
+                              "reg_lambda":hyperparameters.get("reg_lambda",1)
+                  }}
     elif name == "TFTModel":
         config = {"lags":hyperparameters.get("lags", 70),
                   "epochs":hyperparameters.get("epochs", 5),
@@ -373,6 +387,12 @@ def generate_optuna_parameters(name, trial):
     elif name == "LassoLarsModel":
         hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
         hp["alpha"] = trial.suggest_float("alpha", 0.001, 10., log=True)
+    elif name == "XGBRegressorModel":
+        hp["lags"] = trial.suggest_int("lags",5,96,log=True)
+        hp["n_estimators"] = trial.suggest_int("n_estimators",5,100,log=True)
+        hp["colsample_bytree"] = trial.suggest_float("colsample_bytree", 0.1, 1., log=False)
+        hp["reg_alpha"] = trial.suggest_float("reg_alpha", 0.0, 10., log=False)
+        hp["reg_lambda"] = trial.suggest_float("reg_lambda", 0.1, 10., log=True)
     elif name == "TFTModel":
         hp["lags"] = trial.suggest_int("lags",5,96,1,log=False)
         hp["epochs"] = trial.suggest_int("epochs",5,10,1,log=False)
@@ -410,6 +430,12 @@ def generate_optuna_search_space(name):
     elif name == "LassoLarsModel":
         hp["lags"] = [20]
         hp["alpha"] = [0.001,0.01, 0.1,  1.,  10.]
+    elif name == "XGBRegressorModel":
+        hp["lags"] = [10]
+        hp["n_estimators"] = [10]
+        hp["colsample_bytree"] = [0.3, 1.]
+        hp["reg_alpha"] = [0.]
+        hp["reg_lambda"] = [0.1, 1., 10.]
     elif name == "TFTModel":
         hp["lags"] = [10]#[96]
         hp["epochs"] = [5,10]

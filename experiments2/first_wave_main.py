@@ -323,6 +323,9 @@ def full_experiment(dataset, fs_name, cls_name, experiment_identifier, seed=0):
             continue
         print("New file",filename ,"time since begining is", time.time()-start_time, "(", i, "/", len(filelist), ")")
         
+        if dataset=="NoisyVAR_8000" and int(filename.split(".")[0].split("_")[1]) not in list(range(30,60))+list(range(120,150))+list(range(210,240)):
+            continue
+        
         _, var, _, _ = open_dataset_and_ground_truth(data_dir, filename, "parents", rootdir, skip_causal_step=True)
         # make sure to avoid extracting all targets in large datasets
         if target_extraction == "all":
