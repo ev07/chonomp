@@ -860,14 +860,16 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
         # verify for each equivalent variable if it is truly relevant.
         # allows more control since this property is never checked directly,
         # only indirectly with the backward phase on the reference set.
+        statistical_test = "method_backward" if "method_backward" in self.config else "method"
+        threshold = self.config["significance_threshold_backward"] if "significance_threshold_backward" in self.config else self.config["significance_threshold"]
+        
         for key in self.equivalent_variables:
             covariates = [var for var in self.selected_features if var!=key]
             restricted_model = self._train_model(data, covariates)
             to_remove_list = []
             for candidate in self.equivalent_variables[key]:
-                full_model = self._train_model(data, covariates+[candidates])
-                metric = full_model.stopping_metric(restricted_model, self.config["method_backward"])
-                threshold = self.config["significance_threshold_backward"]
+                full_model = self._train_model(data, covariates+[candidate])
+                metric = full_model.stopping_metric(restricted_model, self.config[statistical_test])
                 if metric>=threshold:
                     to_remove_list.append(candidate)
             for to_remove in to_remove_list:

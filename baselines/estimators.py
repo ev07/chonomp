@@ -413,11 +413,11 @@ def generate_optuna_search_space(name):
     elif name == "TFTModel":
         hp["lags"] = [96]
         hp["epochs"] = [5,10]
-        hp["hidden_size"] =[8,16,64]
-        hp["attention_head_size"] = [1,2,4]
+        hp["hidden_size"] =[16]#,16,64]
+        hp["attention_head_size"] = [4]#[1,2,4]
         hp["dropout"] = [0.2]
-        hp["hidden_continuous_size"] = [4,8]
-        hp["lstm_layers"] = [1,2]
+        hp["hidden_continuous_size"] = [4]#[4,8]
+        hp["lstm_layers"] = [1]#[1,2]
     elif name == "DeepARModel" or name == "LSTMModel":
         hp["lags"] = [96]
         hp["epochs"] = [5,10]
