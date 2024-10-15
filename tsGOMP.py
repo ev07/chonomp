@@ -434,9 +434,9 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
         config might optionally contains, depending on 
         verbosity set at 1 keeps track of the algorithm whole history.
         """
+        self.partial_correlation_objects = None
         super().__init__(config,target,verbosity)
         self.equivalent_variables=dict()
-        self.partial_correlation_objects = None
     
     def _reset_fit(self):
         self.selected_features=[]
@@ -478,6 +478,7 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
             partial_corr_constructor = self.config["partial_correlation"]
             partial_correlation_object = partial_corr_constructor(self.config["partial_correlation.config"])
             self.partial_correlation_objects = partial_correlation_object
+
     
     
     def _stopping_criterion(self, current_model, previous_model, len_selected_features):
@@ -553,11 +554,14 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
             candidate_df = data[[candidate]]
             residuals_df = residuals
             condition_df = data[[chosen_variable]]
+            
             pvalue = self.partial_correlation_objects.partial_corr(residuals_df, candidate_df, condition_df)
+            #print(candidate,chosen_variable,pvalue)
             if pvalue > equivalence_threshold:  # no relation found between candidate and residuals given condition
                 pvalue = self.partial_correlation_objects.partial_corr(residuals_df, condition_df, candidate_df)
                 if pvalue > equivalence_threshold:  # no relation found between condition and residuals given candidate
                     equivalent_list.append(candidate)
+                    
         return equivalent_list
     
     def _equivalent_set_comprehensive_resid(self, data, chosen_variable, residuals, candidate_variables):
@@ -733,8 +737,13 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
         #      index is the timestamp
         #      column is the feature name
         
+        model_fit_time = 0
+        association_computation_time = 0
+        
         # train first model with the list of covariate given.
+        t=time.time()
         selected_features, candidate_variables, previous_model, current_model, residuals, time_modeltrain_start, time_modeltrain_end = self._initialize_fit(initial_selected, data)
+        model_fit_time+=time.time()-t
         
         # keep track of the equivalent covariates to each covariate.
         equivalent_variables = self.equivalent_variables
@@ -746,7 +755,9 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
                 break
             
             # compute associations
+            t=time.time()
             measured_associations = self.association_objects.association(residuals, data[candidate_variable_list])
+            association_computation_time+=time.time()-t
             
             chosen_index = np.argmax(measured_associations)
             chosen_variable = candidate_variable_list[chosen_index]
@@ -776,6 +787,7 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
                 removed = self.selected_features.pop(-1)
                 if self.config["equivalent_version"] in ["fgb", "fg", "fg_m"]:
                     self.equivalent_variables.pop(removed)
+        #print("model",model_fit_time,"association",association_computation_time)
     
     def _backward(self, data):
         """
@@ -817,9 +829,19 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
                 selected_variables = self.selected_features[:index]
             elif self.config["equivalent_version"] in ["fbc", "fbc_m"]:
                 selected_variables = self.selected_features[:index]+self.selected_features[index+1:]
+
             current_model = self._train_model(data, selected_variables)
             residuals = current_model.residuals()
+            #print("Entering ablation")
+            #abl_data = data.copy()
+            #abl_data[self.target]=residuals
+            #abl_model = self._train_model(abl_data, [self.selected_features[index],self.target])
+            #print("restricted residual model llf:",abl_model.llh())
+            #abl_data = data[[self.selected_features[index],self.target]]
+            #abl_model = self._train_model(abl_data, [self.selected_features[index],self.target])
+            #print("restricted non-residual model llf:",abl_model.llh())
             
+
             chosen_variable = self.selected_features[index]
             
             # compute equivalent set 
@@ -847,7 +869,7 @@ class tsGOMP_OneAssociation(tsGOMP_AutoRegressive):
             to_remove_list = []
             for candidate in self.equivalent_variables[key]:
                 full_model = self._train_model(data, covariates+[candidate])
-                metric = full_model.stopping_metric(restricted_model, statistical_test)
+                metric = full_model.stopping_metric(restricted_model, self.config[statistical_test])
                 if metric>=threshold:
                     to_remove_list.append(candidate)
             for to_remove in to_remove_list:

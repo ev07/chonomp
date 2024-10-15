@@ -1,8 +1,8 @@
 import sys
 import os
 
-os.environ['OPENBLAS_NUM_THREAD']='10'
-os.environ['MKL_NUM_THREADS'] = '10'
+#os.environ['OPENBLAS_NUM_THREAD']='3'
+#os.environ['MKL_NUM_THREADS'] = '3'
 
 import time
 import pandas as pd
@@ -174,7 +174,7 @@ def setup_dataset(dataset_name, filename, target):
             "MAXIMUM_NUMBER_TARGETS": 10}
             }
         config["DATASET"]["HOLDOUT_RATIO"] = 0.9
-    elif dataset_name == "electricity":
+    elif dataset_name in ["electricity", "electricity_long"]:
         config = {"DATASET":{**config["DATASET"],
             "PATH": "monash/electricity",
             "CAUSES": "parents",
@@ -182,7 +182,9 @@ def setup_dataset(dataset_name, filename, target):
             "MAXIMUM_NUMBER_TARGETS": 10}
             }
         config["DATASET"]["HOLDOUT_RATIO"] = 0.9
-    elif dataset_name == "solar":
+        if dataset_name == "electricity_long":
+            config["DATASET"]["HOLDOUT_RATIO"] = 0.3
+    elif dataset_name in ["solar", "solar_long"]:
         config = {"DATASET":{**config["DATASET"],
             "PATH": "monash/solar",
             "CAUSES": "parents",
@@ -190,7 +192,9 @@ def setup_dataset(dataset_name, filename, target):
             "MAXIMUM_NUMBER_TARGETS": 10}
             }
         config["DATASET"]["HOLDOUT_RATIO"] = 0.9
-    elif dataset_name == "traffic":
+        if dataset_name == "solar_long":
+            config["DATASET"]["HOLDOUT_RATIO"] = 0.3
+    elif dataset_name in ["traffic","traffic_long"]:
         config = {"DATASET":{**config["DATASET"],
             "PATH": "monash/traffic",
             "CAUSES": "parents",
@@ -198,10 +202,12 @@ def setup_dataset(dataset_name, filename, target):
             "MAXIMUM_NUMBER_TARGETS": 10}
             }
         config["DATASET"]["HOLDOUT_RATIO"] = 0.9
+        if dataset_name == "traffic_long":
+            config["DATASET"]["HOLDOUT_RATIO"] = 0.3
         
     elif dataset_name == "pems-bay":
         config = {"DATASET":{**config["DATASET"],
-            "PATH": "GNN_benchmark/PEMS-BAY",
+            "PATH": "GNN_benchmarks/PEMS-BAY",
             "CAUSES": "parents",
             "TARGET_CHOICE": "sampling",
             "MAXIMUM_NUMBER_TARGETS": 10}
@@ -209,7 +215,7 @@ def setup_dataset(dataset_name, filename, target):
         config["DATASET"]["HOLDOUT_RATIO"] = 0.8 # like original
     elif dataset_name == "metr-la":
         config = {"DATASET":{**config["DATASET"],
-            "PATH": "GNN_benchmark/METR-LA",
+            "PATH": "GNN_benchmarks/METR-LA",
             "CAUSES": "parents",
             "TARGET_CHOICE": "sampling",
             "MAXIMUM_NUMBER_TARGETS": 10}
@@ -321,6 +327,11 @@ def full_experiment(dataset, fs_name, cls_name, experiment_identifier, seed=0):
     for i,filename in enumerate(filelist):
         if not os.path.isfile(rootdir + "data/" + data_dir + "/" + filename):
             continue
+        
+        # HERE UNCOMMENT FOR 100-VARIABLES SYNTHETIC DATASETS
+        #if int(filename.split(".")[0].split("_")[1]) not in list(range(30,60))+list(range(120,150))+list(range(210,240)):
+        #    continue
+            
         print("New file",filename ,"time since begining is", time.time()-start_time, "(", i, "/", len(filelist), ")")
         
         if dataset=="NoisyVAR_8000" and int(filename.split(".")[0].split("_")[1]) not in list(range(30,60))+list(range(120,150))+list(range(210,240)):

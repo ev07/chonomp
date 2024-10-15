@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 from tsGOMP import tsGOMP_OneAssociation, tsGOMP_train_val
 from associations import PearsonMultivariate, SpearmanMultivariate, LinearPartialCorrelation, ModelBasedPartialCorrelation
@@ -176,8 +177,8 @@ class ChronOMP(FeatureSelector):
     def _complete_config_from_parameters(hyperparameters):
         config = {"model": hyperparameters.get("model", "ARDL"),
                   "model_config": 
-                     { "constructor" : {"lags":hyperparameters.get("lags", 10),
-                                        "order":hyperparameters.get("order", hyperparameters.get("lags", 10)),
+                     { "constructor" : {"lags":hyperparameters.get("fs.lags", 10),
+                                        "order":hyperparameters.get("order", hyperparameters.get("fs.lags", 10)),
                                         "causal":True,
                                         "trend":hyperparameters.get("trend", "ct"),
                                         "seasonal":hyperparameters.get("seasonal", False),
@@ -189,7 +190,7 @@ class ChronOMP(FeatureSelector):
                  "association": hyperparameters.get("association", "Pearson"),
                  "association_config":{
                        "return_type": hyperparameters.get("return_type", "p-value"),
-                       "lags": hyperparameters.get("lags", 10),
+                       "lags": hyperparameters.get("fs.lags", 10),
                        "selection_rule": hyperparameters.get("selection_rule", "max"),
                      },
                  "config":
@@ -205,8 +206,8 @@ class ChronOMP(FeatureSelector):
     def _generate_optuna_parameters(trial):
         hp = dict()
         hp["model"] = "ARDL"
-        hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
-        hp["order"] = hp["lags"]
+        hp["fs.lags"] = trial.suggest_int("fs.lags",5,20,1,log=False)
+        hp["order"] = hp["fs.lags"]
         hp["trend"] = trial.suggest_categorical("trend",["n","t","c", "ct"])
         hp["association"] = trial.suggest_categorical("association",["Pearson","Spearman"])
         hp["significance_threshold"] = trial.suggest_float("significance_threshold", 1e-20, 0.1, log=True)
@@ -218,12 +219,12 @@ class ChronOMP(FeatureSelector):
     def _generate_optuna_search_space():
         hp = dict()
         hp["model"] = ["ARDL"]
-        hp["lags"] = [20]
-        hp["trend"] = ["n","ct"]
+        hp["fs.lags"] = [96]
+        hp["trend"] = ["c"]
         hp["association"] = ["Pearson"]#,"Spearman"]
-        hp["significance_threshold"] = [1e-20, 1e-10, 1e-5, 1e-4]
-        hp["method"] = ["f-test", "lr-test"]
-        hp["max_features"] = [50]
+        hp["significance_threshold"] = [1e-20, 1e-10,1e-7, 1e-5, 1e-4,1e-3,5e-3,1e-2,5e-2,0.1]
+        hp["method"] = ["lr-test"]
+        hp["max_features"] = [27]
         hp["valid_obs_param_ratio"] = [1.]
         return hp
 
@@ -246,18 +247,18 @@ class BackwardChronOMP(ChronOMP):
         return hp
     def _generate_optuna_search_space():
         hp = ChronOMP._generate_optuna_search_space()
-        hp["lags"] = [10]
+        hp["fs.lags"] = [10]
         hp["method"] = ["f-test"]
-        hp["significance_threshold"] = [1e-20, 1e-10, 1e-5, 1e-2]
-        hp["significance_threshold_backward"] = [1e-20, 1e-10, 1e-5, 1e-2]
+        hp["significance_threshold"] = [1e-5, 1e-3, 1e-2]
+        hp["significance_threshold_backward"] = [ 1e-5,1e-3,0.003, 1e-2,0.05]
         hp["method_backward"] = ["lr-test"]
         return hp
 
 class MultiSetChronOMP(ChronOMP):
-    def __init__(self, config, target, equivalent_version="fg"):
+    def __init__(self, config, target, equivalent_version="fg",verbosity=0):
         self.config=config
         self.target = target
-        self.equivalent_version = version
+        self.equivalent_version = equivalent_version
         config = self._config_init()
         self.instance = tsGOMP_OneAssociation(config, self.target, verbosity=verbosity)
         
@@ -289,7 +290,7 @@ class MultiSetChronOMP(ChronOMP):
         config["partial_correlation"] = hyperparameters.get("partial_correlation", "model_par_corr")
         config["partial_correlation.config"] = {
                        #"method": hyperparameters.get("parr_corr_method", "pearson"),
-                       "lags": hyperparameters.get("lags", 10),
+                       "lags": hyperparameters.get("fs.lags", 10),
                        #"selection_rule": hyperparameters.get("parr_corr_selection_rule", "min"),
                        "large_sample": hyperparameters.get("large_sample", False)
         }
@@ -340,7 +341,7 @@ class TrainTestChronOMP(ChronOMP):
     def _complete_config_from_parameters(hyperparameters):
         config = {"model": hyperparameters.get("model", "SVR"),
                   "model_config": 
-                     {"lags": hyperparameters.get("lags", 10),
+                     {"lags": hyperparameters.get("fs.lags", 10),
                       "skconfig":{"kernel":hyperparameters.get("kernel", "rbf"),
                               "degree":hyperparameters.get("degree", 3),
                               "gamma":hyperparameters.get("gamma", "scale"),
@@ -353,7 +354,7 @@ class TrainTestChronOMP(ChronOMP):
                  "association": hyperparameters.get("association", "Pearson"),
                  "association_config":{
                        "return_type": hyperparameters.get("return_type", "p-value"),
-                       "lags": hyperparameters.get("lags", 10),
+                       "lags": hyperparameters.get("fs.lags", 10),
                        "selection_rule": hyperparameters.get("selection_rule", "max"),
                      },
                  "config":
@@ -370,7 +371,7 @@ class TrainTestChronOMP(ChronOMP):
     def _generate_optuna_parameters(trial):
         hp = dict()
         hp["model"] = "SVR"
-        hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
+        hp["fs.lags"] = trial.suggest_int("fs.lags",5,20,1,log=False)
         hp["kernel"] = trial.suggest_categorical("kernel",["linear","rbf","poly", "sigmoid"])
         hp["coef0"] = trial.suggest_float("coef0", 0.0, 2.)
         hp["C"] = trial.suggest_float("C", 0.05, 20., log=True)
@@ -384,7 +385,7 @@ class TrainTestChronOMP(ChronOMP):
     def _generate_optuna_search_space():
         hp = dict()
         hp["model"] = ["SVR"]
-        hp["lags"] = [20]
+        hp["fs.lags"] = [20]
         hp["kernel"] = ["rbf", "sigmoid"]
         hp["coef0"] = [0.0]
         hp["C"] = [ 0.1, 1., 10.]
@@ -444,7 +445,7 @@ class VectorLassoLars(FeatureSelector):
         return self.selected
 
     def _complete_config_from_parameters(hyperparameters):
-        config = {"lags": hyperparameters.get("lags", 10),
+        config = {"lags": hyperparameters.get("fs.lags", 10),
                   "max_features": hyperparameters.get("max_features",10),
                   "threshold": hyperparameters.get("threshold",0.0001),
                   "model_config": {"alpha":hyperparameters.get("alpha", 1.),
@@ -454,7 +455,7 @@ class VectorLassoLars(FeatureSelector):
         return config
     def _generate_optuna_parameters(trial):
         hp = dict()
-        hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
+        hp["fs.lags"] = trial.suggest_int("fs.lags",5,20,1,log=False)
         hp["max_features"] = trial.suggest_int("max_features", 5, 50, log=True)
         hp["threshold"] = trial.suggest_float("threshold", 0.000001, 0.01, log=True)
         hp["alpha"] = trial.suggest_float("alpha", 0.001, 10., log=True)
@@ -462,7 +463,7 @@ class VectorLassoLars(FeatureSelector):
 
     def _generate_optuna_search_space():
         hp = dict()
-        hp["lags"] = [20]
+        hp["fs.lags"] = [20]
         hp["max_features"] = [50]
         hp["threshold"] = [0.000001, 0.00001,  0.0001,  0.001, 0.01]
         hp["alpha"] = [0.001, 0.01, 0.1, 1.,  10.]
@@ -499,26 +500,27 @@ class GroupLasso(FeatureSelector):
         return self.selected
     
     def _complete_config_from_parameters(hyperparameters):
-        config = {"lags": hyperparameters.get("lags", 10),
+        config = {"lags": hyperparameters.get("fs.lags", 10),
                   "model_config":{
                       "group_reg": hyperparameters.get("group_reg", 0.001),
                       "l1_reg": hyperparameters.get("l1_reg", 0.001),
-                      "n_iter": hyperparameters.get("n_iter", 200),
+                      "n_iter": hyperparameters.get("n_iter", 100),
                       "tol": hyperparameters.get("tol", 1e-5)
                       }
                  }
         return config
     def _generate_optuna_parameters(trial):
         hp = dict()
-        hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
+        hp["fs.lags"] = trial.suggest_int("fs.lags",5,20,1,log=False)
         hp["group_reg"] = trial.suggest_float("group_reg",1e-20,1,log=True)
         hp["l1_reg"] = trial.suggest_float("l1_reg",1e-20,1,log=True)
         return hp
 
     def _generate_optuna_search_space():
         hp = dict()
-        hp["lags"] = [10]
-        hp["group_reg"] = [0.00001, 0.0001, 0.0003, 0.0005, 0.0007, 0.0009, 0.001,  0.0014, 0.0018, 0.0022, 0.0026,0.003,  0.0034, 0.0038, 0.0042, 0.0046, 0.005, 0.007, 0.009, 0.05]
+        hp["fs.lags"] = [96]
+        #hp["group_reg"] = [0.01, 0.02, 0.05, 0.1,0.2, 0.4]
+        hp["group_reg"] = [0.00001, 0.0001, 0.0003, 0.0005, 0.0007, 0.0009, 0.001,  0.0014, 0.0018, 0.0022, 0.0026,0.003,  0.0034, 0.0038, 0.0042, 0.0046, 0.005, 0.007, 0.009, 0.015, 0.02, 0.035, 0.005]
         hp["l1_reg"] = [1e-20]
         return hp
 
@@ -575,7 +577,7 @@ class ModifiedRFE(FeatureSelector):
                                
         config = {"model": hyperparameters.get("model", "SVR"),
                   "model_config": hyperparameters.get("model_config", default_model_config),
-                  "lags": hyperparameters.get("lags", 10),
+                  "lags": hyperparameters.get("fs.lags", 10),
                   "n_features_to_select": hyperparameters.get("n_features_to_select", 10),
                   "step": hyperparameters.get("step", 10)
                  }
@@ -585,7 +587,7 @@ class ModifiedRFE(FeatureSelector):
         hp["model"] = "SVR"
         hp["n_features_to_select"] = trial.suggest_int("n_features_to_select", 5, 50, log=True)
         hp["step"] = trial.suggest_int("step", 4, 10, log=False)
-        hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
+        hp["fs.lags"] = trial.suggest_int("fs.lags",5,20,1,log=False)
         hp["kernel"] = trial.suggest_categorical("kernel",["linear","rbf","poly", "sigmoid"])
         hp["degree"] = trial.suggest_int("degree",2,5,1,log=False)
         hp["coef0"] = trial.suggest_float("coef0", 0.01, 2., log=True)
@@ -593,7 +595,7 @@ class ModifiedRFE(FeatureSelector):
         return hp
     
     def _generate_optuna_search_space():
-        hp["lags"] = [5,10,15]
+        hp["fs.lags"] = [5,10,15]
         hp["model"] = ["SVR"]
         hp["n_features_to_select"] = [1,2,3,4,5,6,7,8,10,15,20,30,40,50]
         hp["step"] = [2, 4, 6, 8, 10]
@@ -670,14 +672,14 @@ class BivariateGranger(FeatureSelector):
         
     def _generate_optuna_parameters(trial):
         hp = dict()    
-        hp["maxlags"] = trial.suggest_int("maxlags",5,20,1,log=False)
+        hp["maxlags"] = trial.suggest_int("maxlags",5,50,1,log=False)
         hp["alpha_level"] = trial.suggest_float("alpha_level",0.0001,  0.1, log=True)
         return hp
     
     def _generate_optuna_search_space():
         hp = dict()
-        hp["maxlags"] = [5,10,15]
-        hp["alpha_level"] = [0.001, 0.01, 0.05,  0.1]
+        hp["maxlags"] = [50]
+        hp["alpha_level"] = [0.0001,0.001, 0.01, 0.05,  0.1]
         return hp
         
 ##################################################################
@@ -725,16 +727,16 @@ class VectorMRMR(FeatureSelector):
         return self.selected
 
     def _complete_config_from_parameters(hyperparameters):
-        config = {"lags": hyperparameters.get("lags", 10),
+        config = {"lags": hyperparameters.get("fs.lags", 10),
                   "num_features": hyperparameters.get("num_features",10),
-                  "config": {"alpha":hyperparameters.get("relevance", "rf"),
+                  "config": {"relevance":hyperparameters.get("relevance", "rf"),
                                    "redundancy":hyperparameters.get("redundancy", "c"),
                                    "denominator":hyperparameters.get("denominator", "mean")}
                   }
         return config
     def _generate_optuna_parameters(trial):
         hp = dict()
-        hp["lags"] = trial.suggest_int("lags",5,50,1,log=False)
+        hp["fs.lags"] = trial.suggest_int("fs.lags",5,50,1,log=False)
         hp["num_features"] = trial.suggest_int("num_features", 5, 100, log=True)
         hp["relevance"] = trial.suggest_categorical("relevance",["f","rf"])
         hp["denominator"] = trial.suggest_categorical("denominator",["mean","max"])
@@ -742,7 +744,7 @@ class VectorMRMR(FeatureSelector):
 
     def _generate_optuna_search_space():
         hp = dict()
-        hp["lags"] = [50]
+        hp["fs.lags"] = [50]
         hp["num_features"] = [5, 10, 20, 30, 50, 70, 100]
         hp["relevance"] = ["rf"]
         hp["denominator"] = ["mean","max"]
@@ -790,7 +792,7 @@ class SyPI(FeatureSelector):
         return self.selected
         
     def _complete_config_from_parameters(hyperparameters):
-        config = {"lags": hyperparameters.get("lags", 10),
+        config = {"lags": hyperparameters.get("fs.lags", 10),
                   "p_cond1": hyperparameters.get("p_cond1",0.001),
                   "p_cond2": hyperparameters.get("p_cond2",hyperparameters.get("p_cond1",0.001)),
                   "threshold_lasso": hyperparameters.get("threshold_lasso",0.001)}
@@ -798,7 +800,7 @@ class SyPI(FeatureSelector):
         
     def _generate_optuna_parameters(trial):
         hp = dict()
-        hp["lags"] = trial.suggest_int("lags",5,20,1,log=False)
+        hp["fs.lags"] = trial.suggest_int("fs.lags",5,20,1,log=False)
         hp["threshold_lasso"] = trial.suggest_float("threshold_lasso",0.00001, 0.1, log=True)
         hp["p_cond1"] = trial.suggest_float("p_cond1",0.001,  0.1, log=True)
         hp["p_cond2"] = trial.suggest_float("p_cond2",0.001,  0.1, log=True)
@@ -806,7 +808,7 @@ class SyPI(FeatureSelector):
     
     def _generate_optuna_search_space():
         hp = dict()
-        hp["lags"] = [5,10,15]
+        hp["fs.lags"] = [5,10,15]
         hp["threshold_lasso"] = [0.000001, 0.00001,  0.0001,  0.001, 0.01]
         hp["p_cond1"] = [0.001, 0.01, 0.05, 0.1]
         hp["p_cond2"] = [0.001, 0.01, 0.05, 0.1]
@@ -862,6 +864,8 @@ def complete_config_from_parameters(name, hyperparameters):
         config = SyPI._complete_config_from_parameters(hyperparameters)
     elif name == "GroupLasso":
         config = GroupLasso._complete_config_from_parameters(hyperparameters)
+    elif name == "VectorMRMR":
+        config = VectorMRMR._complete_config_from_parameters(hyperparameters)
     elif name == "NoSelection":
         config = NoSelection._complete_config_from_parameters(hyperparameters)
     return config
@@ -885,6 +889,8 @@ def generate_optuna_parameters(name, trial):
         hp = SyPI._generate_optuna_parameters(trial)
     elif name == "GroupLasso":
         hp = GroupLasso._generate_optuna_parameters(trial)
+    elif name == "VectorMRMR":
+        hp = VectorMRMR._generate_optuna_parameters(trial)
     elif name == "NoSelection":
         hp = NoSelection._generate_optuna_parameters(trial)
     return hp
@@ -908,6 +914,8 @@ def generate_optuna_search_space(name):
         hp = SyPI._generate_optuna_search_space()
     elif name == "GroupLasso":
         hp = GroupLasso._generate_optuna_search_space()
+    elif name == "VectorMRMR":
+        hp = VectorMRMR._generate_optuna_search_space()
     elif name == "NoSelection":
         hp = NoSelection._generate_optuna_search_space()
     return hp

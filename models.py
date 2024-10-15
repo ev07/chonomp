@@ -16,8 +16,8 @@ import pydash
 
 #from modelsources import deepAR
 
-from torch import device
-import torch.cuda
+#from torch import device
+#import torch.cuda
 
 import baselines.estimators
 

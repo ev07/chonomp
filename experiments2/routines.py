@@ -13,6 +13,7 @@ sys.path.append(rootdir)
 from baselines.estimators import Estimator, ARDLModel, SVRModel, KNeighborsRegressorModel, DeepARModel, TFTModel, LSTMModel, XGBRegressorModel
 from baselines.feature_selection import ChronOMP, BivariateGranger, ModifiedRFE, VectorLassoLars, BackwardChronOMP, TrainTestChronOMP, GroupLasso, VectorMRMR, NoSelection
 
+
 from data_opener import open_dataset_and_ground_truth
 
 class TargetNotSelectedError(ValueError):
@@ -57,11 +58,12 @@ def get_CLS(config_file):
     model = {
     "ARDLModel":ARDLModel, 
     "SVRModel": SVRModel, 
+    "KNeighborsRegressorModel": KNeighborsRegressorModel,
     "TFTModel":TFTModel,
-    "DeepARModel":DeepARModel,
     "LSTMModel":LSTMModel,
     "XGBRegressorModel":XGBRegressorModel,
     "KNeighborsRegressorModel": KNeighborsRegressorModel
+    "DeepARModel":DeepARModel
     }[name]
     
     constructor = lambda target: model(config, target)
